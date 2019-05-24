@@ -1,0 +1,7 @@
+-cp src
+
+Grant
+Permission
+
+-php c:/wamp64/www/semsem_v0.5
+-D php7

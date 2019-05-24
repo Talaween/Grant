@@ -1,0 +1,31 @@
+{
+	"accessControl":[
+		{
+			"role":"pupil", 
+			"grant":[
+						{
+							"resource":"task", 
+							"create":{
+								"limit": 0,
+								"withField":""
+							},
+							"read":{
+								"records":"PupilTask.pupilId=user.id&PupilTask.taskId=task.id",
+								"fields": "*",
+								"limit": -1,
+								"withField":""
+							},
+							"update":{
+								"records": "none",
+								"fields": "",
+								"limit": 0,
+								"withField":""
+							},
+							"delete":{
+								"records":"none"
+							}
+						}
+					]
+		}
+	]
+}	

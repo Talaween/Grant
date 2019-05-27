@@ -5,22 +5,25 @@ import Grant.Policy;
  * @author Mahmoud Awad
  */
 
- class Permission {
+ class Permission 
+ {
 
      //read only properties 
     public var granted(default, null):Bool;
     public var policy(default, null):Policy;
     public var role(default, null):String;
+    public var resource(default, null):String;
 
     @:isVar private var message(get, set):String;
-
-    private var fields:String;
    
-    public function new(granted:Bool,role:String, policy:Policy){
+    public function new(granted:Bool, role:String, resource:String, policy:Policy){
+        
         this.granted = granted;
         this.role = role;
         this.policy = policy;
-        this.fields = checkFields(fields);
+        this.resource = resource.toLowerCase();
+        this.policy.fields = checkFields(this.policy.fields);
+
     }
     
     function get_message(){
@@ -71,14 +74,43 @@ import Grant.Policy;
        return finalFields; 
     }  
 
-    public function filter(resource:Dynamic):Dynamic{
+    public function filter(resource:Dynamic):Dynamic
+    {
+        var fields = policy.fields.split(",");
 
-        //create a new object 
-        var tempResource:Dynamic = {};
+        var  len = fields.length;
 
-        tempResource.x = 0;
+        if(fields[0] == "*")
+        {
+            if(len == 1)
+                return resource;
+            else
+            {
+                var field:String;
+                for(i in 1...len)
+                {
+                    field = fields[i].substr(1);
+                    Reflect.deleteField(resource, field);
+                }
+                return resource;
+            }
+        }
+        else
+        {
+            var resourceCopy = {};
 
-        return tempResource;
+            for(i in 0...len)
+            {
+                Reflect.setField(resourceCopy, fields[i], Reflect.field(resource, fields[i]));
+            }
+
+            return resourceCopy;
+        }
+    }
+
+    public function getFields():Array<String>
+    {
+        return policy.fields.split(",");
     }
      
  }

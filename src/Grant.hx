@@ -46,7 +46,7 @@ class Grant
     {
 
         if(_schema == null)
-            return new Permission(false, role, null);
+            return new Permission(false, role, resourceName, null);
         
         //find the role in the schema
         var _thisRole:Role = null;
@@ -61,7 +61,7 @@ class Grant
         
         //if we could not find the role
         if(_thisRole == null)
-            return  new Permission(false, role, null);
+            return  new Permission(false, role, resourceName, null);
 
         //find the policy on resource for this role 
         var _policy:Policy = null;
@@ -76,27 +76,24 @@ class Grant
                         _policy = _pol;
                         break;
                 }
-            }
-                
+            }    
         }
 
         if(_policy == null)
-            return new Permission(false, role, null);
-        
+            return new Permission(false, role, resourceName, null);
         if(any)
         {
             if(_policy.records != "any")
             {
-                return new Permission(false, role, null);
+                return new Permission(false, role, resourceName, null);
             }
         }
-
         if(_policy.limit.amount == 0)
         {
-            return new Permission(false, role, null);
+            return new Permission(false, role, resourceName, null);
         }
         
-        return new Permission(true, role, _policy);
+        return new Permission(true, role, resourceName, _policy);
 
     }
 
@@ -118,9 +115,18 @@ class Grant
 
         var allow = false;
 
-        allow = checkRecord(user, resource, permission.policy.records, connection);
-        allow = checkLimit (permission.policy.limit, connection);
+        allow = checkRecord(user, permission.resource, resource, permission.policy.records, connection);
+        
+        if(allow)
+        {
+             allow = checkLimit (permission.policy.limit, connection);
 
+             if(allow)
+             {
+                 return permission.filter(resource);
+             }
+        }
+           
         return null;
  
     }
@@ -145,7 +151,8 @@ class Grant
 
         return allow;
     }
-    private function checkRecord(user:Dynamic, resource:Dynamic, rule:String, connection:Connection):Bool
+
+    private function checkRecord(user:Dynamic, resourceName:String, resource:Dynamic, rule:String, connection:Connection):Bool
     {
         
         if(rule == null || rule == "" || rule == "none")
@@ -166,12 +173,12 @@ class Grant
 
             if(numConditions == 1)
             {
-                return evalOneCondition(user, conditions[0], resource, connection);
+                return evalOneCondition(user, conditions[0], resourceName, resource, connection);
             } 
             else if(numConditions == 2)
             {
                 
-                return evalTwoConditions(user, conditions, resource, connection);
+                return evalTwoConditions(user, conditions, resourceName, resource, connection);
             }
             else
             {
@@ -181,13 +188,11 @@ class Grant
         }
     }
 
-    private function evalOneCondition(user:Dynamic, condition:String, resource:Dynamic, connection:Connection):Bool
+    private function evalOneCondition(user:Dynamic, condition:String, resourceName:String, resource:Dynamic, connection:Connection):Bool
     {
         //we have only one condition
         //resources involved in the cndition are the user and the resource
         //example: resource.ownerId = user.id
-
-        var resourceName =  Type.getClassName(resource).toLowerCase();
 
         //we need to know the name of the field associated with user
         var userField = "";
@@ -263,8 +268,7 @@ class Grant
                 {
                     throw "user is used on both side of the condition";
                     return false;
-                }
-                    
+                }    
             }
 
             var part1 = Reflect.field(user, userField);
@@ -288,13 +292,11 @@ class Grant
                 return false;
         }  
     }
-    private function evalTwoConditions(user:Dynamic, conditions:Array<String>, resource:Dynamic, connection:Connection):Bool
+    private function evalTwoConditions(user:Dynamic, conditions:Array<String>, resourceName:String, resource:Dynamic, connection:Connection):Bool
     {
 
         //case we have three resources 
         //example pupilTasks.pupilId = pupil.id & pupilTask.taskId = task.id
-
-        var resourceName =  Type.getClassName(resource).toLowerCase();
 
         //we need to know the name of the field associated with user
         var userField = "";
@@ -315,7 +317,6 @@ class Grant
             throw "wrong expression in condition, not same resource used in left part of each condition.";
             return false;
         }
-
         if(operandsCon1Parts2[0] != 'user')
         {
             if(operandsCon1Parts2[0] != resourceName)
@@ -332,7 +333,6 @@ class Grant
         {
                 userField =  operandsCon1Parts2[0];
         }
-
         if(operandsCon2Parts2[0] != 'user')
         {
             if(operandsCon2Parts2[0] != resourceName)
@@ -351,7 +351,6 @@ class Grant
                     throw "resource name is used on both side of the consition";
                     return false;
                 }
-                 
             }
         }
         else
@@ -364,8 +363,7 @@ class Grant
             {
                 throw "user is used on both side of the consition";
                 return false;
-            }
-                
+            }  
         }
 
         var part1 = Reflect.field(user, userField);
@@ -376,7 +374,6 @@ class Grant
             throw "record expression is wrong, " + userField + " is not part of user class";
             return false;
         }
-
         if(part2 == null)
         {
             throw "record expression is wrong, " + resourceField + " is not part of " + resourceName + " class";
@@ -384,9 +381,7 @@ class Grant
         }
 
         //now we need to run an sql query
-
         var sql = "SELECT * FROM " + operandsCon1Parts1[0] + " WHERE " + operandsCon1Parts1[1] + " = " + part1 + " AND " + operandsCon2Parts1[1] + " = " + part2;
-        
         try
         {
              if(connectDB(sql, connection) > 0)
@@ -399,7 +394,6 @@ class Grant
             throw err;
         }
        
-
         return false;
     }
 

@@ -6,12 +6,10 @@
 
  import sys.db.Connection;
 
-typedef CreatePolicy = {limit:Int, withField:String};
-typedef UpdatePolicy = {records:String, fields:String, limit:Int, withField:String}; 
-typedef ReadPolicy = {records:String, fields:String, limit:Int, withField:String}; 
-typedef DeletePolicy = {records:String};   
-typedef Resource = {name:String, create:CreatePolicy, update:UpdatePolicy, read:ReadPolicy, delete:DeletePolicy};
-typedef Role = {name:String, grant:Array<Resource>};    
+typedef Limit = {amount:Int, on:String, equal:String}
+typedef Policy = {action:String, records:String, fields:String, limit:Limit};   
+typedef Resource = {resource:String, policies:Array<Policy>};
+typedef Role = {role:String, grant:Array<Resource>};    
     
 class Grant 
 {
@@ -19,20 +17,17 @@ class Grant
 
     private var _schema:{accesscontrol:Array<Role>};
 
-    private var _dbConnection:Connection;
-
-    public static function getInstance(?connection:Connection):Grant
+    public static function getInstance():Grant
     {
         if (_instance == null)
-            _instance = new Grant(connection);
+            _instance = new Grant();
 
         return _instance;
     }
     
-    private function new(connection)
+    private function new()
     {
 
-        _dbConnection = connection;
     }
     
     public function buildPolicy(schema:String)
@@ -47,104 +42,112 @@ class Grant
         }
     }
     
-    public function access(user:Dynamic, action:String, resource:Dynamic):Permission
+    public function canAccess(role:String, action:String, resourceName:String, any:Bool = false):Permission
     {
-        
-        var role= "";
 
-        if(user.role == null)
-        {
-            throw ('user object has no role property');
-            return new Permission(false, action, "");
-        }
-        else
-            role = user.role;
+        if(_schema == null)
+            return new Permission(false, role, null);
         
-        var resourceName = Type.getClassName(resource);
-
-        //find the role object in the schema
+        //find the role in the schema
         var _thisRole:Role = null;
         for(_r in _schema.accesscontrol)
         {
-            if(_r.name == role)
+            if(_r.role == role)
+            {
                 _thisRole = _r;
+                break;
+            }
         }
         
+        //if we could not find the role
         if(_thisRole == null)
-            return  new Permission(false, action, "");
+            return  new Permission(false, role, null);
 
-        //find the resource policies in the schema
-        var _policies:Resource = null;
+        //find the policy on resource for this role 
+        var _policy:Policy = null;
         
-        for(_p in _thisRole.grant)
+        for(_res in _thisRole.grant)
         {
-            if(_p.name == resource)
-                _policies = _p;
+            if(_res.resource == resourceName)
+            {
+                for (_pol in _res.policies)
+                {
+                    if(_pol.action == action)
+                        _policy = _pol;
+                        break;
+                }
+            }
+                
         }
-              
-        if(_policies == null)
-        {
-            return  new Permission(false, action, "");
-        }
-            
-        //check the action
 
-        action = action.toUpperCase();
-
-        switch(action)
-        {
-            case "CREATE":
-                //check which fields the role can create
-                //check limits
-                if(_policies.create.limit == -1)
-                {
-                    //we do not care about limit
-                    return new Permission(true, "Create", "*");
-                }
-                else if(_policies.create.limit > 0)
-                {
-                    if(_dbConnection == null)
-                    {
-                        throw "No connection to db provided, grant needs to check create action limit";
-                        return  new Permission(false, action, "");
-                    }  
-                }    
-                else
-                {
-                    //user not allowed to create, limit is 0
-                    return new Permission(false, action, "");
-                }
-            case "READ":
-                //check if this record accessible by user for reading
-                try
-                {
-                    var allow = checkRecord(_policies.read.records, user, resource, resourceName);
-                    if(allow)
-                    {
-                        //now we need to know which fields
-                        return new Permission(true, "Read", checkFields(_policies.read.fields));
-                    }
-                    else
-                        return  new Permission(false, "Read", "");
-                }
-                catch(err:String)
-                {
-                    throw err;
-                    return  new Permission(false, "Read", "");
-                }
-            case "UPDATE":
-            case "DELETE":
-        }//end switch
+        if(_policy == null)
+            return new Permission(false, role, null);
         
-        return  new Permission(false, action, "");     
+        if(any)
+        {
+            if(_policy.records != "any")
+            {
+                return new Permission(false, role, null);
+            }
+        }
+
+        if(_policy.limit.amount == 0)
+        {
+            return new Permission(false, role, null);
+        }
+        
+        return new Permission(true, role, _policy);
+
     }
 
-    private function checkRecord(user:Dynamic, rule:String, resource:Dynamic, resourceName:String):Bool{
-        
-        rule = rule.toLowerCase();
-        rule = StringTools.trim(rule);
-        resourceName = resourceName.toLowerCase();
+    public function access(user:Dynamic, permission:Permission, resource:Dynamic, ?connection:Connection):Dynamic
+    {  
+        if(permission == null || permission.policy == null || user == null){
+            throw "permission, its policy or user objects is null";
+            return null;
+        }
+        if(user.role == null)
+        {
+            throw ('user object has no role property');
+            return null;
+        }
 
+        if(user.role != permission.role){
+            return null;
+        }
+
+        var allow = false;
+
+        allow = checkRecord(user, resource, permission.policy.records, connection);
+        allow = checkLimit (permission.policy.limit, connection);
+
+        return null;
+ 
+    }
+
+    private function checkLimit(limit:Limit, connection:Connection):Bool
+    {
+
+        var allow = false;
+        if(limit.amount == -1)
+        {
+            //we do not care about limit
+            allow = true;
+        }
+        else if(limit.amount > 0)
+        {
+            if(connection == null)
+            {
+                throw "No connection to db provided, Grant needs to check create action limit";
+            }
+            //TODO find limit in DB
+        }    
+
+        return allow;
+    }
+    private function checkRecord(user:Dynamic, resource:Dynamic, rule:String, connection:Connection):Bool
+    {
+        
         if(rule == null || rule == "" || rule == "none")
         {
             return false;
@@ -155,152 +158,262 @@ class Grant
         }
         else 
         {
-            var conditions = rule.split('&');
-            var conLen = conditions.length;
+            rule = rule.toLowerCase();
+            rule = Utils.stripSpaces(rule);
 
-            if(conLen == 1)
+            var conditions = rule.split('&');
+            var numConditions = conditions.length;
+
+            if(numConditions == 1)
+            {
+                return evalOneCondition(user, conditions[0], resource, connection);
+            } 
+            else if(numConditions == 2)
             {
                 
-                //we have only one condition
-                //resources involved in the cndition are the user and the resource
-                //example: resource.ownerId = user.id
+                return evalTwoConditions(user, conditions, resource, connection);
+            }
+            else
+            {
+                throw "wrong expression, more than two conditions is not yet supported.";
+                return false;
+            }
+        }
+    }
 
-                //we need to know the name of the field associated with user
-                var userField = "";
-                //the name of the field associated with resource
-                var resourceField = "";
-                //split the operands of the condition 
-                var operands = conditions[0].split("=");
-                if(operands.length != 2)
+    private function evalOneCondition(user:Dynamic, condition:String, resource:Dynamic, connection:Connection):Bool
+    {
+        //we have only one condition
+        //resources involved in the cndition are the user and the resource
+        //example: resource.ownerId = user.id
+
+        var resourceName =  Type.getClassName(resource).toLowerCase();
+
+        //we need to know the name of the field associated with user
+        var userField = "";
+        //the name of the field associated with resource
+        var resourceField = "";
+        //split the operands of the condition 
+        var operands = condition.split("=");
+
+        if(operands.length != 2)
+        {
+            throw "records expression is wrong, less or more than two operands";
+            return false;
+        }
+        else
+        {
+            //make sure one operand is the resource name and the other is the user
+            var operand1Parts = operands[0].split(".");
+            if(operand1Parts.length != 2)
+            {
+                throw "records expression is wrong, dot notation is wrong at operand 1.";
+                return false;
+            }
+            if(operand1Parts[0] != 'user')
+            {
+                if(operand1Parts[0] != resourceName)
                 {
-                    throw "records expression is wrong, less or more than two operands: " + rule;
+                    throw "record expression is wrong, unknown resource on operand 1.";
                     return false;
                 }
                 else
                 {
-                    //make sure one operand is the resource name and the other is the user
-                    operands[0] =  StringTools.trim(operands[0]);
-                    var operand1Parts = operands[0].split(".");
-                    if(operand1Parts.length != 2)
-                    {
-                        throw "records expression is wrong, dot notation is wrong at operand 1: " + rule;
-                        return false;
-                    }
-                    if(operand1Parts[0] != 'user')
-                    {
-                        if(operand1Parts[0] != resourceName)
-                        {
-                            throw "record expression is wrong, unknown resource on operand 1: " + rule;
-                            return false;
-                        }
-                        else
-                        {
-                            resourceField =  StringTools.trim(operand1Parts[1]); 
-                        }   
-                    }
-                    else
-                    {
-                        userField =  StringTools.trim(operand1Parts[1]);
-                    }
-                    operands[1] =  StringTools.trim(operands[1]);
-                    var operand2Parts = operands[1].split(".");
-                    if(operand2Parts.length != 2)
-                    {
-                        throw "records expression is wrong, dot notation is wrong at operand 2: " + rule;
-                        return false;
-                    }
-                    
-                    if(operand2Parts[0] != 'User')
-                    {
-                        if(operand2Parts[0] != resourceName)
-                        {
-                            throw "record expression is wrong, unknown resource on operand 2: " + rule;
-                            return false;
-                        }
-                        else
-                        {
-                            resourceField =  StringTools.trim(operand2Parts[1]); 
-                        }
-                    }
-                    else
-                    {
-                         userField =  StringTools.trim(operand2Parts[1]);
-                    }
-
-                    var part1 = Reflect.field(user, userField);
-                    var part2 = Reflect.field(resource, resourceField);
-                    
-                    if(part1 == null)
-                    {
-                        throw "record expression is wrong, " + userField + " is not part of user class";
-                        return false;
-                    }
-
-                    if(part2 == null)
-                    {
-                        throw "record expression is wrong, " + resourceField + " is not part of " + resourceName + " class";
-                        return false;
-                    }
-
-                    if(part1 == part2)
-                        return true;
-                    else
-                        return false;
-                }
-            } //end if conditions == 1
-            else if(conLen == 2)
+                    resourceField =  operand1Parts[1]; 
+                }   
+            }
+            else
             {
-                //case we have three resources
-                //example pupilTasks.pupilId = pupil.id & pupilTask.taskId = task.id
+                userField =  operand1Parts[1];
+            }
+            var operand2Parts = operands[1].split(".");
+            if(operand2Parts.length != 2)
+            {
+                throw "records expression is wrong, dot notation is wrong at operand 2.";
+                return false;
+            }
+            
+            if(operand2Parts[0] != 'User')
+            {
+                if(operand2Parts[0] != resourceName)
+                {
+                    throw "record expression is wrong, unknown resource on operand 2.";
+                    return false;
+                }
+                else
+                {
+                    if(resourceField == "")
+                    {
+                        resourceField =  operand2Parts[1]; 
+                    }
+                    else
+                    {
+                        throw "resource name is used on both side of the consition";
+                        return false;
+                    }
+                }
+            }
+            else
+            {
+                if(userField == "")
+                {
+                    userField =  operand2Parts[1];
+                }
+                else
+                {
+                    throw "user is used on both side of the condition";
+                    return false;
+                }
+                    
+            }
+
+            var part1 = Reflect.field(user, userField);
+            var part2 = Reflect.field(resource, resourceField);
+            
+            if(part1 == null)
+            {
+                throw "record expression is wrong, " + userField + " is not part of user class";
+                return false;
+            }
+
+            if(part2 == null)
+            {
+                throw "record expression is wrong, " + resourceField + " is not part of " + resourceName + " class";
+                return false;
+            }
+
+            if(part1 == part2)
+                return true;
+            else
+                return false;
+        }  
+    }
+    private function evalTwoConditions(user:Dynamic, conditions:Array<String>, resource:Dynamic, connection:Connection):Bool
+    {
+
+        //case we have three resources 
+        //example pupilTasks.pupilId = pupil.id & pupilTask.taskId = task.id
+
+        var resourceName =  Type.getClassName(resource).toLowerCase();
+
+        //we need to know the name of the field associated with user
+        var userField = "";
+        //the name of the field associated with resource
+        var resourceField = "";
+
+        var operandsCon1 = conditions[0].split("=");
+        var operandsCon2 = conditions[1].split("=");
+
+        var operandsCon1Parts1 = operandsCon1[0].split(".");
+        var operandsCon1Parts2 = operandsCon1[1].split(".");
+
+        var operandsCon2Parts1 = operandsCon2[0].split(".");
+        var operandsCon2Parts2 = operandsCon2[1].split(".");
+
+        if(operandsCon1Parts1[0] != operandsCon2Parts1[0] )
+        {
+            throw "wrong expression in condition, not same resource used in left part of each condition.";
+            return false;
+        }
+
+        if(operandsCon1Parts2[0] != 'user')
+        {
+            if(operandsCon1Parts2[0] != resourceName)
+            {
+                throw "record expression is wrong, unknown resource on operand 2 at first condition.";
                 return false;
             }
             else
             {
-                throw "wrong expression, more than two conditions are not yet supported.";
+                resourceField =  operandsCon1Parts2[0]; 
+            }
+        }
+        else
+        {
+                userField =  operandsCon1Parts2[0];
+        }
+
+        if(operandsCon2Parts2[0] != 'user')
+        {
+            if(operandsCon2Parts2[0] != resourceName)
+            {
+                throw "record expression is wrong, unknown resource on operand 2 at first condition.";
+                return false;
+            }
+            else
+            {
+                if(resourceField == "")
+                {
+                    resourceField =  operandsCon2Parts2[0];
+                }
+                else
+                {
+                    throw "resource name is used on both side of the consition";
+                    return false;
+                }
+                 
+            }
+        }
+        else
+        {
+            if(userField == "")
+            {
+                userField =  operandsCon2Parts2[0];
+            }
+            else
+            {
+                throw "user is used on both side of the consition";
                 return false;
             }
                 
         }
-    } //end checkRecords
 
-    private function checkFields(fields:String):String
-    {
+        var part1 = Reflect.field(user, userField);
+        var part2 = Reflect.field(resource, resourceField);
 
-        var fieldsArray = fields.split(",");
-        var includedFields = new Array<String>();
-        var excludedFields = new Array<String>();
-        var allFieldsUsed = false;
-
-        for(field in fieldsArray)
+        if(part1 == null)
         {
-            field = StringTools.trim(field);
-            if(field == "*")
-            {
-                allFieldsUsed = true;
-            }
-            else if(field.charAt(0) != '!')
-            {
-                if(Utils.linearSearch(includedFields, field) == -1)
-                {
-                    includedFields.push(field);
-                }
-            }
-            else 
-            {
-                if(Utils.linearSearch(excludedFields, field) == -1)
-                {
-                    includedFields.push(field);
-                }
-            }
+            throw "record expression is wrong, " + userField + " is not part of user class";
+            return false;
+        }
+
+        if(part2 == null)
+        {
+            throw "record expression is wrong, " + resourceField + " is not part of " + resourceName + " class";
+            return false;
+        }
+
+        //now we need to run an sql query
+
+        var sql = "SELECT * FROM " + operandsCon1Parts1[0] + " WHERE " + operandsCon1Parts1[1] + " = " + part1 + " AND " + operandsCon2Parts1[1] + " = " + part2;
+        
+        try
+        {
+             if(connectDB(sql, connection) > 0)
+                return true;
+            else
+                return false;
+        }
+        catch(err:String)
+        {
+            throw err;
+        }
+       
+
+        return false;
+    }
+
+    private function connectDB(sql, connection:Connection):Int
+    {
+        if(connection == null)
+        {
+            throw "no connection to db is provided.";
+            return 0;
         }
         
-        var finalFields = "";
+        var results = connection.request(sql);
 
-        if(allFieldsUsed)
-            finalFields = "*" + "," + Std.string(excludedFields);
-        else
-            finalFields = Std.string(includedFields);
-
-       return finalFields; 
-    }  
+        return results.results().length;
+    }
+    
 }

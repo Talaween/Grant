@@ -1,3 +1,4 @@
+import Grant.Policy;
 
 /**
  * ...
@@ -6,23 +7,78 @@
 
  class Permission {
 
-     //read only property granted
-    private var _granted:Bool;
-    private var _action:String;
-    private var _fields:String;
-    private var _message:String;
+     //read only properties 
+    public var granted(default, null):Bool;
+    public var policy(default, null):Policy;
+    public var role(default, null):String;
 
-    public function new(granted:Bool, action:String, fields:String, ?message:String){
-        _granted = granted;
-        _action = action;
-        _fields = fields;
-        _message = message;
+    @:isVar private var message(get, set):String;
+
+    private var fields:String;
+   
+    public function new(granted:Bool,role:String, policy:Policy){
+        this.granted = granted;
+        this.role = role;
+        this.policy = policy;
+        this.fields = checkFields(fields);
     }
     
-    public function filter(resource:Dynamic){
+    function get_message(){
+        return message;
+    }
+    function set_message(message:String){
+        return this.message = message;
+    }
 
-         //create a new object 
+    private function checkFields(fields:String):String
+    {
 
-     }
+        var fieldsArray = fields.split(",");
+        var includedFields = new Array<String>();
+        var excludedFields = new Array<String>();
+        var allFieldsUsed = false;
+
+        for(field in fieldsArray)
+        {
+            field = StringTools.trim(field);
+            if(field == "*")
+            {
+                allFieldsUsed = true;
+            }
+            else if(field.charAt(0) != '!')
+            {
+                if(Utils.linearSearch(includedFields, field) == -1)
+                {
+                    includedFields.push(field);
+                }
+            }
+            else 
+            {
+                if(Utils.linearSearch(excludedFields, field) == -1)
+                {
+                    includedFields.push(field);
+                }
+            }
+        }
+        
+        var finalFields = "";
+
+        if(allFieldsUsed)
+            finalFields = "*" + "," + Std.string(excludedFields);
+        else
+            finalFields = Std.string(includedFields);
+
+       return finalFields; 
+    }  
+
+    public function filter(resource:Dynamic):Dynamic{
+
+        //create a new object 
+        var tempResource:Dynamic = {};
+
+        tempResource.x = 0;
+
+        return tempResource;
+    }
      
  }

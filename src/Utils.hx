@@ -17,5 +17,23 @@ class Utils
 		
 		return -1;
 	}
+
+	public static function stripSpaces(str:String):String
+	{
+
+		var tempStr = "";
+
+		var len = str.length;
+
+		for (i in 0...len)
+		{
+			if(StringTools.isSpace(str, i) == false)
+			{
+				tempStr += str.charAt(i);
+			}
+		}
+
+		return tempStr;
+	}
 	
 }

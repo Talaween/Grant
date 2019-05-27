@@ -15,7 +15,7 @@ class Grant
 {
     private static var _instance:Grant;
 
-    private var _schema:{accesscontrol:Array<Role>};
+    private var schema:{accesscontrol:Array<Role>};
 
     public static function getInstance():Grant
     {
@@ -34,7 +34,7 @@ class Grant
     {
         try
         {
-             _schema = haxe.Json.parse(schema);
+             this.schema = haxe.Json.parse(schema);
         }
         catch(ex:String)
         {
@@ -45,12 +45,16 @@ class Grant
     public function canAccess(role:String, action:String, resourceName:String, any:Bool = false):Permission
     {
 
-        if(_schema == null)
+        if(schema == null || schema.accesscontrol == null){
+            trace("no schema");
             return new Permission(false, role, resourceName, null);
+        }
+            
         
         //find the role in the schema
         var _thisRole:Role = null;
-        for(_r in _schema.accesscontrol)
+
+        for(_r in schema.accesscontrol)
         {
             if(_r.role == role)
             {
@@ -60,8 +64,11 @@ class Grant
         }
         
         //if we could not find the role
-        if(_thisRole == null)
+        if(_thisRole == null){
+            trace("no such role");
             return  new Permission(false, role, resourceName, null);
+        }
+            
 
         //find the policy on resource for this role 
         var _policy:Policy = null;
@@ -70,26 +77,36 @@ class Grant
         {
             if(_res.resource == resourceName)
             {
+                trace(_res.policies.length);
                 for (_pol in _res.policies)
                 {
+                    trace("compare:" + _pol.action + " to " + action);
                     if(_pol.action == action)
+                    { 
                         _policy = _pol;
                         break;
+                    }
+                       
                 }
             }    
         }
 
-        if(_policy == null)
+        if(_policy == null){
+            trace("no policy");
             return new Permission(false, role, resourceName, null);
+        }
+            
         if(any)
         {
             if(_policy.records != "any")
             {
+                 trace("no any article can do");
                 return new Permission(false, role, resourceName, null);
             }
         }
         if(_policy.limit.amount == 0)
         {
+             trace("amount is zero");
             return new Permission(false, role, resourceName, null);
         }
         
@@ -238,7 +255,7 @@ class Grant
                 return false;
             }
             
-            if(operand2Parts[0] != 'User')
+            if(operand2Parts[0] != 'user')
             {
                 if(operand2Parts[0] != resourceName)
                 {

@@ -1,11 +1,11 @@
 {
-	"accessControl":
+	"accesscontrol":
 	[
 		{
-		"role":"pupil", 
+		"role":"author", 
 		"grant":[
 					{
-						"resource":"task", 
+						"resource":"article", 
 						"policies":
 						[
 							{
@@ -13,7 +13,102 @@
 								"records": "any",
 								"fields" : "*",
 								"limit" : {
-									"amount": 10,
+									"amount": -1,
+									"on" :"",
+									"equal" : ""
+								}
+
+							}, 
+							{
+								"action" : "read",
+								"records": "article.authorId=user.id",
+								"fields" : "*",
+								"limit" : {
+									"amount": -1,
+									"on" :"",
+									"equal" : ""
+								}
+
+							},
+							{
+								"action" : "read",
+								"records": "article.authorId!=user.id",
+								"fields" : "title,authorId, body, publishedDate",
+								"limit" : {
+									"amount": -1,
+									"on" :"",
+									"equal" : ""
+								}
+
+							},
+							{
+								"action" : "update",
+								"records": "article.authorId=user.id",
+								"fields" : "*",
+								"limit" : {
+									"amount": -1,
+									"on" :"",
+									"equal" : ""
+								}
+
+							},
+							{
+								"action" : "delete",
+								"records": "article.authorId=user.id",
+								"fields" : "*",
+								"limit" : {
+									"amount": -1,
+									"on" :"",
+									"equal" : ""
+								}
+
+							}
+						]
+						
+					},
+					{
+						"resource":"comments", 
+						"policies":
+						[
+							{
+								"action" : "create",
+								"records": "any",
+								"fields" : "*",
+								"limit" : {
+									"amount": -1,
+									"on" :"",
+									"equal" : ""
+								}
+
+							}, 
+							{
+								"action" : "read",
+								"records": "any",
+								"fields" : "*",
+								"limit" : {
+									"amount": -1,
+									"on" :"",
+									"equal" : ""
+								}
+
+							},
+							{
+								"action" : "update",
+								"records": "comment.authorId=user.id",
+								"fields" : "title, body",
+								"limit" : {
+									"amount": -1,
+									"on" :"",
+									"equal" : ""
+								}
+
+							},
+							{
+								"action" : "delete",
+								"records": "comment.authorId=user.id",
+								"fields" : "*",
+								"limit" : {
+									"amount": -1,
 									"on" :"",
 									"equal" : ""
 								}

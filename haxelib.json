@@ -1,0 +1,14 @@
+{
+  "name": "Grant",
+  "url" : "https://github.com/Talaween/Grant",
+  "license": "MIT",
+  "tags": ["accesscontrol", "Role-based-access-control"],
+  "description": "a Role-based Access Control Library for Haxe, works well woth anonomous structure and Haxe Record Macros.",
+  "version": "1.0.0-alpha",
+  "classPath": "src/",
+  "releasenote": "Initial release, basic functionality working as expected.",
+  "contributors": ["Mahmoud-Awad","Talaween"],
+  "dependencies": {
+    
+  }
+}

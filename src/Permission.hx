@@ -10,9 +10,10 @@ import Grant.Policy;
 
      //read only properties 
     public var granted(default, null):Bool;
-    public var policy(default, null):Policy;
-    public var role(default, null):String;
-    public var resource(default, null):String;
+    
+    public var policy:Policy;
+    public var role:String;
+    public var resource:String;
 
     @:isVar private var message(get, set):String;
    
@@ -20,10 +21,16 @@ import Grant.Policy;
         
         this.granted = granted;
         this.role = role;
-        this.policy = policy;
-        this.resource = resource.toLowerCase();
-        this.policy.fields = checkFields(this.policy.fields);
 
+        if(resource != null)
+            this.resource = resource.toLowerCase();
+
+        if(policy != null)
+        {
+            this.policy = policy;
+            this.policy.fields = checkFields(this.policy.fields);
+        }
+        
     }
     
     function get_message(){
@@ -36,47 +43,44 @@ import Grant.Policy;
     private function checkFields(fields:String):String
     {
 
+        fields = Utils.stripSpaces(fields);
+
         var fieldsArray = fields.split(",");
         var includedFields = new Array<String>();
         var excludedFields = new Array<String>();
-        var allFieldsUsed = false;
+        var finalFields = "";
 
         for(field in fieldsArray)
         {
-            field = StringTools.trim(field);
             if(field == "*")
             {
-                allFieldsUsed = true;
+                finalFields = "*, " + finalFields;
             }
             else if(field.charAt(0) != '!')
             {
                 if(Utils.linearSearch(includedFields, field) == -1)
                 {
                     includedFields.push(field);
+                    finalFields += field + ",";
                 }
             }
             else 
             {
                 if(Utils.linearSearch(excludedFields, field) == -1)
                 {
-                    includedFields.push(field);
+                    excludedFields.push(field);
+                    finalFields += field + ",";
                 }
             }
         }
         
-        var finalFields = "";
-
-        if(allFieldsUsed)
-            finalFields = "*" + "," + Std.string(excludedFields);
-        else
-            finalFields = Std.string(includedFields);
-
-       return finalFields; 
+        return finalFields; 
     }  
 
     public function filter(resource:Dynamic):Dynamic
     {
         var fields = policy.fields.split(",");
+        var field:String;
 
         var  len = fields.length;
 
@@ -86,7 +90,7 @@ import Grant.Policy;
                 return resource;
             else
             {
-                var field:String;
+                
                 for(i in 1...len)
                 {
                     field = fields[i].substr(1);
@@ -101,7 +105,16 @@ import Grant.Policy;
 
             for(i in 0...len)
             {
-                Reflect.setField(resourceCopy, fields[i], Reflect.field(resource, fields[i]));
+                if(fields[i].length > 0){
+
+                    if(fields[i].charAt(0) != "!")
+                        Reflect.setField(resourceCopy, fields[i], Reflect.field(resource, fields[i]));
+                    else
+                    {
+                        field = fields[i].substr(1);
+                        Reflect.deleteField(resourceCopy, field);
+                    }
+                }   
             }
 
             return resourceCopy;

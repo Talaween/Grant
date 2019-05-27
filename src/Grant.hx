@@ -46,7 +46,6 @@ class Grant
     {
 
         if(schema == null || schema.accesscontrol == null){
-            trace("no schema");
             return new Permission(false, role, resourceName, null);
         }
             
@@ -65,7 +64,6 @@ class Grant
         
         //if we could not find the role
         if(_thisRole == null){
-            trace("no such role");
             return  new Permission(false, role, resourceName, null);
         }
             
@@ -77,10 +75,8 @@ class Grant
         {
             if(_res.resource == resourceName)
             {
-                trace(_res.policies.length);
                 for (_pol in _res.policies)
                 {
-                    trace("compare:" + _pol.action + " to " + action);
                     if(_pol.action == action)
                     { 
                         _policy = _pol;
@@ -92,7 +88,6 @@ class Grant
         }
 
         if(_policy == null){
-            trace("no policy");
             return new Permission(false, role, resourceName, null);
         }
             
@@ -100,13 +95,11 @@ class Grant
         {
             if(_policy.records != "any")
             {
-                 trace("no any article can do");
                 return new Permission(false, role, resourceName, null);
             }
         }
         if(_policy.limit.amount == 0)
         {
-             trace("amount is zero");
             return new Permission(false, role, resourceName, null);
         }
         

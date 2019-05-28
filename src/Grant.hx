@@ -2,6 +2,13 @@
 /**
  * ...
  * @author Mahmoud Awad
+ * 
+ * Allow more than one policy on same resource but different on records
+ * Allow more than one user roles
+ * allow dynamic user roles creation from outide DB
+ * filter sub-object based on role view on the sub-object
+ * 
+ * 
  */
 
  import sys.db.Connection;
@@ -416,6 +423,9 @@ class Grant
         }
         
         var results = connection.request(sql);
+
+        if(results == null || results.results() == null)
+            return 0;
 
         return results.results().length;
     }

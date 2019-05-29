@@ -120,15 +120,11 @@ class Grant
 
     public function access(user:Dynamic, permission:Permission, resource:Dynamic, ?connection:Connection):Dynamic
     {  
-        if(permission == null || permission.policy == null || user == null){
+        if(permission == null || permission.policy == null || user == null)
             throw "permission, its policy or user objects is null";
-            return null;
-        }
         if(user.role == null)
-        {
             throw ('user object has no role property');
-            return null;
-        }
+        
 
         if(user.role != permission.role){
             return null;
@@ -164,9 +160,8 @@ class Grant
         else if(limit.amount > 0)
         {
             if(connection == null)
-            {
                 throw "No connection to db provided, Grant needs to check create action limit";
-            }
+            
             //TODO find limit in DB
         }    
 
@@ -202,10 +197,8 @@ class Grant
                 return evalTwoConditions(user, conditions, resourceName, resource, connection);
             }
             else
-            {
                 throw "wrong expression, more than two conditions is not yet supported.";
-                return false;
-            }
+            
         }
     }
 
@@ -223,26 +216,18 @@ class Grant
         var operands = condition.split("=");
 
         if(operands.length != 2)
-        {
             throw "records expression is wrong, less or more than two operands";
-            return false;
-        }
         else
         {
             //make sure one operand is the resource name and the other is the user
             var operand1Parts = operands[0].split(".");
             if(operand1Parts.length != 2)
-            {
                 throw "records expression is wrong, dot notation is wrong at operand 1.";
-                return false;
-            }
+            
             if(operand1Parts[0] != 'user')
             {
                 if(operand1Parts[0] != resourceName)
-                {
                     throw "record expression is wrong, unknown resource on operand 1.";
-                    return false;
-                }
                 else
                 {
                     resourceField =  operand1Parts[1]; 
@@ -254,18 +239,13 @@ class Grant
             }
             var operand2Parts = operands[1].split(".");
             if(operand2Parts.length != 2)
-            {
                 throw "records expression is wrong, dot notation is wrong at operand 2.";
-                return false;
-            }
+            
             
             if(operand2Parts[0] != 'user')
             {
                 if(operand2Parts[0] != resourceName)
-                {
                     throw "record expression is wrong, unknown resource on operand 2.";
-                    return false;
-                }
                 else
                 {
                     if(resourceField == "")
@@ -273,10 +253,8 @@ class Grant
                         resourceField =  operand2Parts[1]; 
                     }
                     else
-                    {
                         throw "resource name is used on both side of the consition";
-                        return false;
-                    }
+                    
                 }
             }
             else
@@ -286,26 +264,19 @@ class Grant
                     userField =  operand2Parts[1];
                 }
                 else
-                {
                     throw "user is used on both side of the condition";
-                    return false;
-                }    
             }
 
             var part1 = Reflect.field(user, userField);
             var part2 = Reflect.field(resource, resourceField);
             
             if(part1 == null)
-            {
                 throw "record expression is wrong, " + userField + " is not part of user class";
-                return false;
-            }
+            
 
             if(part2 == null)
-            {
                 throw "record expression is wrong, " + resourceField + " is not part of " + resourceName + " class";
-                return false;
-            }
+            
 
             if(part1 == part2)
                 return true;
@@ -334,17 +305,11 @@ class Grant
         var operandsCon2Parts2 = operandsCon2[1].split(".");
 
         if(operandsCon1Parts1[0] != operandsCon2Parts1[0] )
-        {
             throw "wrong expression in condition, not same resource used in left part of each condition.";
-            return false;
-        }
         if(operandsCon1Parts2[0] != 'user')
         {
             if(operandsCon1Parts2[0] != resourceName)
-            {
                 throw "record expression is wrong, unknown resource on operand 2 at first condition.";
-                return false;
-            }
             else
             {
                 resourceField =  operandsCon1Parts2[0]; 
@@ -357,10 +322,7 @@ class Grant
         if(operandsCon2Parts2[0] != 'user')
         {
             if(operandsCon2Parts2[0] != resourceName)
-            {
                 throw "record expression is wrong, unknown resource on operand 2 at first condition.";
-                return false;
-            }
             else
             {
                 if(resourceField == "")
@@ -368,10 +330,7 @@ class Grant
                     resourceField =  operandsCon2Parts2[0];
                 }
                 else
-                {
                     throw "resource name is used on both side of the consition";
-                    return false;
-                }
             }
         }
         else
@@ -381,25 +340,17 @@ class Grant
                 userField =  operandsCon2Parts2[0];
             }
             else
-            {
                 throw "user is used on both side of the consition";
-                return false;
-            }  
         }
 
         var part1 = Reflect.field(user, userField);
         var part2 = Reflect.field(resource, resourceField);
 
         if(part1 == null)
-        {
             throw "record expression is wrong, " + userField + " is not part of user class";
-            return false;
-        }
         if(part2 == null)
-        {
             throw "record expression is wrong, " + resourceField + " is not part of " + resourceName + " class";
-            return false;
-        }
+        
 
         //now we need to run an sql query
         var sql = "SELECT * FROM " + operandsCon1Parts1[0] + " WHERE " + operandsCon1Parts1[1] + " = " + part1 + " AND " + operandsCon2Parts1[1] + " = " + part2;
@@ -544,10 +495,8 @@ class Grant
     private function connectDB(sql, connection:Connection):Int
     {
         if(connection == null)
-        {
             throw "no connection to db is provided.";
-            return 0;
-        }
+        
         
         var results = connection.request(sql);
 

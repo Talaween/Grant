@@ -4,9 +4,7 @@
  * @author Mahmoud Awad
  * 
  * Allow more than one policy on same resource but different on records
- * Allow using != > >= < or <= operators
- * allow using & and | on two conditions
- * Allow more than one user roles
+ * Allow more than one user role
  * allow dynamic user roles creation from outide DB
  * filter sub-object based on role view on the sub-object by using ^ operator
  * 
@@ -15,12 +13,13 @@
 
  import sys.db.Connection;
 
-typedef Limit = {amount:Int, on:String, equal:String}
+typedef Limit = {amount:Int, whatToCount:String, toEqual:String}
 typedef Policy = {action:String, records:String, fields:String, limit:Limit};   
 typedef Resource = {resource:String, policies:Array<Policy>};
 typedef Role = {role:String, grant:Array<Resource>};    
 
 typedef Condition = {resource1:String, field1:String, operator:String, resource2:String, field2:String}; 
+typedef Conditions = {conditions:Array<Condition>, operators:Array<String>};
 
 class Grant 
 {
@@ -53,13 +52,12 @@ class Grant
         }
     }
     
-    public function canAccess(role:String, action:String, resourceName:String, any:Bool = false):Permission
+    public function mayAccess(role:String, action:String, resourceName:String, any:Bool = false):Permission
     {
 
         if(schema == null || schema.accesscontrol == null){
             return new Permission(false, role, resourceName, null);
         }
-            
         
         //find the role in the schema
         var _thisRole:Role = null;
@@ -78,7 +76,6 @@ class Grant
             return  new Permission(false, role, resourceName, null);
         }
             
-
         //find the policy on resource for this role 
         var _policy:Policy = null;
         
@@ -93,26 +90,21 @@ class Grant
                         _policy = _pol;
                         break;
                     }
-                       
                 }
             }    
         }
 
-        if(_policy == null){
+        if(_policy == null)
             return new Permission(false, role, resourceName, null);
-        }
-            
+        
         if(any)
         {
             if(_policy.records != "any")
-            {
-                return new Permission(false, role, resourceName, null);
-            }
+                return new Permission(false, role, resourceName, null);   
         }
+
         if(_policy.limit.amount == 0)
-        {
             return new Permission(false, role, resourceName, null);
-        }
         
         return new Permission(true, role, resourceName, _policy);
 
@@ -125,14 +117,13 @@ class Grant
         if(user.role == null)
             throw ('user object has no role property');
         
-
         if(user.role != permission.role){
             return null;
         }
 
         var allow = false;
 
-        allow = checkRecord(user, permission.resource, resource, permission.policy.records, connection);
+        allow = checkRecord(user, permission, resource, connection);
         
         if(allow)
         {
@@ -145,12 +136,10 @@ class Grant
         }
            
         return null;
- 
     }
 
     private function checkLimit(limit:Limit, connection:Connection):Bool
     {
-
         var allow = false;
         if(limit.amount == -1)
         {
@@ -168,122 +157,25 @@ class Grant
         return allow;
     }
 
-    private function checkRecord(user:Dynamic, resourceName:String, resource:Dynamic, rule:String, connection:Connection):Bool
+    private function checkRecord(user:Dynamic, permission:Permission, resource:Dynamic, connection:Connection):Bool
     {
-        
-        if(rule == null || rule == "" || rule == "none")
+        if(permission == null || permission.policy == null || permission.policy.records == "" || permission.policy.records == "none")
         {
             return false;
         }  
-        else if(rule == "any")
+        else if(permission.policy.records == "any")
         {
             return true;
         }
         else 
         {
-            rule = rule.toLowerCase();
+            var rule = permission.policy.records.toLowerCase();
             rule = Utils.stripSpaces(rule);
 
-            var conditions = rule.split('&');
-            var numConditions = conditions.length;
-
-            if(numConditions == 1)
-            {
-                return evalOneCondition(user, conditions[0], resourceName, resource, connection);
-            } 
-            else if(numConditions == 2)
-            {
-                
-                return evalTwoConditions(user, conditions, resourceName, resource, connection);
-            }
-            else
-                throw "wrong expression, more than two conditions is not yet supported.";
-            
+            return evaluateConditions(user, permission, resource, parseConditions(rule));
         }
     }
 
-    private function evalOneCondition(user:Dynamic, condition:String, resourceName:String, resource:Dynamic, connection:Connection):Bool
-    {
-        //we have only one condition
-        //resources involved in the cndition are the user and the resource
-        //example: resource.ownerId = user.id
-
-        //we need to know the name of the field associated with user
-        var userField = "";
-        //the name of the field associated with resource
-        var resourceField = "";
-        //split the operands of the condition 
-        var operands = condition.split("=");
-
-        if(operands.length != 2)
-            throw "records expression is wrong, less or more than two operands";
-        else
-        {
-            //make sure one operand is the resource name and the other is the user
-            var operand1Parts = operands[0].split(".");
-            if(operand1Parts.length != 2)
-                throw "records expression is wrong, dot notation is wrong at operand 1.";
-            
-            if(operand1Parts[0] != 'user')
-            {
-                if(operand1Parts[0] != resourceName)
-                    throw "record expression is wrong, unknown resource on operand 1.";
-                else
-                {
-                    resourceField =  operand1Parts[1]; 
-                }   
-            }
-            else
-            {
-                userField =  operand1Parts[1];
-            }
-            var operand2Parts = operands[1].split(".");
-            if(operand2Parts.length != 2)
-                throw "records expression is wrong, dot notation is wrong at operand 2.";
-            
-            
-            if(operand2Parts[0] != 'user')
-            {
-                if(operand2Parts[0] != resourceName)
-                    throw "record expression is wrong, unknown resource on operand 2.";
-                else
-                {
-                    if(resourceField == "")
-                    {
-                        resourceField =  operand2Parts[1]; 
-                    }
-                    else
-                        throw "resource name is used on both side of the consition";
-                    
-                }
-            }
-            else
-            {
-                if(userField == "")
-                {
-                    userField =  operand2Parts[1];
-                }
-                else
-                    throw "user is used on both side of the condition";
-            }
-
-            var part1 = Reflect.field(user, userField);
-            var part2 = Reflect.field(resource, resourceField);
-            
-            if(part1 == null)
-                throw "record expression is wrong, " + userField + " is not part of user class";
-            
-
-            if(part2 == null)
-                throw "record expression is wrong, " + resourceField + " is not part of " + resourceName + " class";
-            
-
-            if(part1 == part2)
-                return true;
-            else
-                return false;
-        }  
-    }
     private function evalTwoConditions(user:Dynamic, conditions:Array<String>, resourceName:String, resource:Dynamic, connection:Connection):Bool
     {
 
@@ -351,7 +243,6 @@ class Grant
         if(part2 == null)
             throw "record expression is wrong, " + resourceField + " is not part of " + resourceName + " class";
         
-
         //now we need to run an sql query
         var sql = "SELECT * FROM " + operandsCon1Parts1[0] + " WHERE " + operandsCon1Parts1[1] + " = " + part1 + " AND " + operandsCon2Parts1[1] + " = " + part2;
         try
@@ -369,19 +260,25 @@ class Grant
         return false;
     }
 
-    public function parseConditions(cond:String):Array<Condition>
+    public function parseConditions(cond:String):Conditions
     {
         var len = cond.length;
         var conditionPart = 0;
 
+        var allowedOperators = ["=", "!", ">", "<", ")", "("];
+
         var condition:Condition = {resource1: "", field1:"", operator:"", resource2:"", field2:""};
 
-        var conditions = new Array<Condition>();
+        var allConditions:Conditions = {conditions : new Array<Condition>(), operators: new Array<String>()}
 
-        for(i in 0...len)
+        var countOpenParanthesis = 0;
+        var countCloseParanthesis = 0;
+
+        var i = 0;
+        while(i < len)
         {
             var char = cond.charAt(i);
-
+           
             if(Utils.isLetterOrDigit(char) )
             {
                switch (conditionPart)
@@ -407,20 +304,45 @@ class Grant
                         throw "too many dots have been detected";
                }
             }
-            else if(char == "=")
+            else if(Utils.linearSearch(allowedOperators, char) > -1)
             {
-                if(conditionPart == 1 && i != 0 && cond.charAt(i-1) != "!")
+                switch(char)
                 {
-                    condition.operator = "=";
-                    conditionPart++;  
+                    case "=":
+                        condition.operator = "=";
+                        conditionPart++;
+                    case "!":
+                       if(i < len-1 && cond.charAt(i+1) == "=")
+                        {
+                            condition.operator = "!=";
+                            i++;
+                            conditionPart++;  
+                        }
+                        else
+                             throw "wrong placement of ! operator";  
+                    case ">" | "<":
+                        if(i < len-1 && cond.charAt(i+1) == "=")
+                        {
+                            condition.operator = char + "=";
+                            i++;
+                            conditionPart++;  
+                        }
+                        else if(i < len-1)
+                        {
+                            condition.operator = char;
+                            conditionPart++;
+                        }
+                        else
+                            throw "wrong placement of > or < operators";
+                    case "(":
+                        countOpenParanthesis++;
+                       // if(i != 0 && (cond.charAt(i-1) != "&" && cond.charAt(i-1) != "|") )
+                         //   throw "Wrong placement of paranthesis (.";
+                    case ")":
+                        countCloseParanthesis++;
+                       // if(i!= len -1 && (cond.charAt(i+1) != "&" && cond.charAt(i+1) != "|") )
+                         //   throw "Wrong placement of paranthesis ).";
                 }
-                else if(conditionPart == 1 && i != 0 && cond.charAt(i-1) == "!")
-                {
-                    condition.operator = "!=";
-                    conditionPart++;
-                }
-                else
-                    throw "wrong placement of = operator";
             }
             else if(char == ".")
             {
@@ -428,7 +350,6 @@ class Grant
             }
             else if( (char == "&" || char == "|"))
             {
-                
                 if(conditionPart != 3)
                     throw "wrong placement of & or | characters in the condition expression";
 
@@ -442,9 +363,7 @@ class Grant
                 
                 if(condition.field1 != "")
                     con1.field1 = condition.field1;
-                else 
-                     throw "field1 is empty";
-                
+               
                 if(condition.operator != "")
                     con1.operator = condition.operator;
                 else 
@@ -457,10 +376,9 @@ class Grant
                 
                 if(condition.field2 != "")
                     con1.field2 = condition.field2;
-                else 
-                     throw "field2 is empty";
-
-                conditions.push(con1);
+            
+                allConditions.conditions.push(con1);
+                allConditions.operators.push(char);
 
                 //now reset condition for next one
                 condition.resource1 = "";
@@ -472,31 +390,79 @@ class Grant
                 conditionPart = 0;
             }
             else
-            {
-                if(char != "!")
-                    throw "unallowed character has been used in the condition expression:" + char ;
-                //be mindful where the ! character is located in the condition
-                else if(condition.operator != "" || ( i+1 < len && cond.charAt(i+1) != "=") || i== len-1)
-                    throw "wrong placement of ! character in the condition";
-            }
+                throw "unallowed character has been used in the condition expression:" + char ;
+
+            i++;
         }
 
-        if(condition.resource1 != "" && condition.field1 != "" && condition.operator != "" && condition.resource2 != "" && condition.field2 != "")
-            conditions.push(condition);
+        if(countOpenParanthesis != countCloseParanthesis)
+            throw "Wrong matching of open and close paranthesis";
+
+        if(condition.resource1 != ""  && condition.operator != "" && condition.resource2 != "" )
+            allConditions.conditions.push(condition);
         else{
-
-            throw "a field is empty";
+            throw "a field is empty in the last expression";
         }
-            
-
-        return conditions;
+    
+        return allConditions;
     }
 
+    private function evaluateConditions(user:Dynamic, permission:Permission, resource:Dynamic, conditions:Conditions):Bool
+    {
+        for(cond in conditions.conditions)
+        {
+            if( cond.resource1 == 'user'  && cond.resource2 == permission.resource )
+            {
+                if(cond.field1 != '' && cond.field2 != '')
+                {
+                    var part1 = Reflect.field(user, cond.field1);
+                    var part2 = Reflect.field(resource, cond.field2);
+                    
+                    if(part1 == null)
+                        throw "record expression is wrong, " + cond.field1 + " is not part of user class";
+
+                    if(part2 == null)
+                        throw "record expression is wrong, " + cond.field2 + " is not part of " + permission.resource + " class";
+                    
+                    if(part1 == part2)
+                        return true;
+                    else
+                        return false;
+                }
+
+            }
+            if( cond.resource2 == 'user'  && cond.resource1 == permission.resource )
+            {
+                if(cond.field1 != '' && cond.field2 != '')
+                {
+                    var part1 = Reflect.field(user, cond.field2);
+                    var part2 = Reflect.field(resource, cond.field1);
+                    
+                    if(part1 == null)
+                        throw "record expression is wrong, " + cond.field2 + " is not part of user class";
+
+                    if(part2 == null)
+                        throw "record expression is wrong, " + cond.field1 + " is not part of " + permission.resource + " class";
+                    
+                    if(part1 == part2)
+                        return true;
+                    else
+                        return false;
+                }
+            }
+
+            //TODO now whenever we meet user or permssion.resource in cond.resource1 or resource2
+            //replace them with their corresponsing fields values
+            //construct the sql statement
+           
+        }
+
+        return false;
+    }
     private function connectDB(sql, connection:Connection):Int
     {
         if(connection == null)
             throw "no connection to db is provided.";
-        
         
         var results = connection.request(sql);
 

@@ -4,9 +4,11 @@
  * @author Mahmoud Awad
  * 
  * Allow more than one policy on same resource but different on records
+ * Allow using != > >= < or <= operators
+ * allow using & and | on two conditions
  * Allow more than one user roles
  * allow dynamic user roles creation from outide DB
- * filter sub-object based on role view on the sub-object
+ * filter sub-object based on role view on the sub-object by using ^ operator
  * 
  * 
  */
@@ -17,7 +19,9 @@ typedef Limit = {amount:Int, on:String, equal:String}
 typedef Policy = {action:String, records:String, fields:String, limit:Limit};   
 typedef Resource = {resource:String, policies:Array<Policy>};
 typedef Role = {role:String, grant:Array<Resource>};    
-    
+
+typedef Condition = {resource1:String, field1:String, operator:String, resource2:String, field2:String}; 
+
 class Grant 
 {
     private static var _instance:Grant;
@@ -412,6 +416,129 @@ class Grant
         }
        
         return false;
+    }
+
+    public function parseConditions(cond:String):Array<Condition>
+    {
+        var len = cond.length;
+        var conditionPart = 0;
+
+        var condition:Condition = {resource1: "", field1:"", operator:"", resource2:"", field2:""};
+
+        var conditions = new Array<Condition>();
+
+        for(i in 0...len)
+        {
+            var char = cond.charAt(i);
+
+            if(Utils.isLetterOrDigit(char) )
+            {
+               switch (conditionPart)
+               {
+                   case 0:
+                        //do not accept digit to start variable names
+                        if(condition.resource1.length == 0 && Utils.isDigit(char))
+                            throw "resource1 name should not start with a digit";
+                        condition.resource1 += char;
+                   case 1:
+                        if(condition.field1.length == 0 && Utils.isDigit(char))
+                             throw "field1 name should not start with a digit";
+                        condition.field1 += char;
+                   case 2:
+                        if(condition.resource2.length == 0 && Utils.isDigit(char))
+                            throw "resource2 name should not start with a digit";
+                        condition.resource2 += char;
+                   case 3:
+                        if(condition.field2.length == 0 && Utils.isDigit(char))
+                            throw "field2 name should not start with a digit";
+                        condition.field2 += char;
+                    case 4:
+                        throw "too many dots have been detected";
+               }
+            }
+            else if(char == "=")
+            {
+                if(conditionPart == 1 && i != 0 && cond.charAt(i-1) != "!")
+                {
+                    condition.operator = "=";
+                    conditionPart++;  
+                }
+                else if(conditionPart == 1 && i != 0 && cond.charAt(i-1) == "!")
+                {
+                    condition.operator = "!=";
+                    conditionPart++;
+                }
+                else
+                    throw "wrong placement of = operator";
+            }
+            else if(char == ".")
+            {
+                conditionPart++;
+            }
+            else if( (char == "&" || char == "|"))
+            {
+                
+                if(conditionPart != 3)
+                    throw "wrong placement of & or | characters in the condition expression";
+
+                var con1:Condition = {resource1: "", field1:"", operator:"", resource2:"", field2:""};
+
+                //copy the condition before resetting it
+                if(condition.resource1 != "")
+                    con1.resource1 = condition.resource1;
+                else 
+                    throw "resource1 is empty";
+                
+                if(condition.field1 != "")
+                    con1.field1 = condition.field1;
+                else 
+                     throw "field1 is empty";
+                
+                if(condition.operator != "")
+                    con1.operator = condition.operator;
+                else 
+                     throw "operator is empty";
+
+                if(condition.resource2 != "")
+                    con1.resource2 = condition.resource2;
+                else 
+                     throw "resource2 is empty";
+                
+                if(condition.field2 != "")
+                    con1.field2 = condition.field2;
+                else 
+                     throw "field2 is empty";
+
+                conditions.push(con1);
+
+                //now reset condition for next one
+                condition.resource1 = "";
+                condition.field1 = "";
+                condition.operator = "";
+                condition.resource2 = "";
+                condition.field2 = "";
+
+                conditionPart = 0;
+            }
+            else
+            {
+                if(char != "!")
+                    throw "unallowed character has been used in the condition expression:" + char ;
+                //be mindful where the ! character is located in the condition
+                else if(condition.operator != "" || ( i+1 < len && cond.charAt(i+1) != "=") || i== len-1)
+                    throw "wrong placement of ! character in the condition";
+            }
+        }
+
+        if(condition.resource1 != "" && condition.field1 != "" && condition.operator != "" && condition.resource2 != "" && condition.field2 != "")
+            conditions.push(condition);
+        else{
+
+            throw "a field is empty";
+        }
+            
+
+        return conditions;
     }
 
     private function connectDB(sql, connection:Connection):Int

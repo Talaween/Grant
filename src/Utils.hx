@@ -35,5 +35,35 @@ class Utils
 
 		return tempStr;
 	}
+
+	public static function isLetter(char:String):Bool
+	{
+		if(char.length > 1)
+			return false;
+		
+		var code = char.toLowerCase().charCodeAt(0);
+		
+		if( code > 96 && code < 123)
+			return true;
+
+		return false;
+	}
+	public static function isDigit(char:String):Bool
+	{
+		if(char.length > 1)
+			return false;
+		
+		var code = char.toLowerCase().charCodeAt(0);
+		
+		if( code > 47 && code < 58)
+			return true;
+
+		return false;
+	}
+	public static function isLetterOrDigit(char:String):Bool
+	{
+		return (isLetter(char) || isDigit(char));
+		
+	}
 	
 }

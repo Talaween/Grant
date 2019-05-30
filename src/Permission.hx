@@ -90,7 +90,6 @@ import Grant.Policy;
                 return resource;
             else
             {
-                
                 for(i in 1...len)
                 {
                     field = fields[i].substr(1);

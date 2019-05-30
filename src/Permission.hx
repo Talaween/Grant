@@ -10,27 +10,37 @@ import Grant.Policy;
 
      //read only properties 
     public var granted(default, null):Bool;
-    
-    public var policy:Policy;
+    public var allPolicies(default, null):Array<Policy>;
+
     public var role:String;
     public var resource:String;
 
+    @:isVar public var activePolicy(get, set):Policy;
     @:isVar private var message(get, set):String;
    
-    public function new(granted:Bool, role:String, resource:String, policy:Policy){
+    public function new(granted:Bool, role:String, resource:String, policies:Array<Policy>){
         
         this.granted = granted;
         this.role = role;
 
         if(resource != null)
             this.resource = resource.toLowerCase();
+    }
+    
+    function get_activePolicy(){
 
-        if(policy != null)
-        {
-            this.policy = policy;
-            this.policy.fields = checkFields(this.policy.fields);
-        }
+        if(activePolicy == null)
+            if(allPolicies != null && allPolicies.length > 0)
+                activePolicy = allPolicies[0];
         
+        return activePolicy;
+    }
+
+    function set_activePolicy(policy:Policy){
+        this.activePolicy = policy;
+        checkFields(activePolicy.fields);
+
+        return activePolicy;
     }
     
     function get_message(){
@@ -39,7 +49,6 @@ import Grant.Policy;
     function set_message(message:String){
         return this.message = message;
     }
-
     private function checkFields(fields:String):String
     {
 
@@ -79,7 +88,10 @@ import Grant.Policy;
 
     public function filter(user:Dynamic, resource:Dynamic):Dynamic
     {
-        var fields = policy.fields.split(",");
+        if(activePolicy == null)
+            return null;
+        
+        var fields = activePolicy.fields.split(",");
         var field:String;
 
         var  len = fields.length;
@@ -118,7 +130,7 @@ import Grant.Policy;
                             //as subobject in order to prevent infinite recursions
                             if(subs[1] != this.resource)
                             {
-                                var subPermission = grant.mayAccess(this.role, this.policy.action, subs[1]);
+                                var subPermission = grant.mayAccess(this.role, this.activePolicy.action, subs[1]);
 
                                 if(subPermission.granted == true)
                                 {
@@ -144,7 +156,10 @@ import Grant.Policy;
 
     public function getFields():Array<String>
     {
-        return policy.fields.split(",");
+        if(activePolicy == null)
+            return null;
+
+        return activePolicy.fields.split(",");
     }
      
  }

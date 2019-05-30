@@ -19,7 +19,6 @@ typedef Role = {role:String, grant:Array<Resource>};
 typedef Condition = {resource1:String, field1:String, operator:String, resource2:String, field2:String}; 
 typedef Conditions = {conditions:Array<Condition>, operators:Array<String>};
 
-
 class Grant 
 {
     private static var _instance:Grant;
@@ -77,7 +76,7 @@ class Grant
         }
             
         //find the policy on resource for this role 
-        var _policy:Policy = null;
+        var _policies = new Array<Policy>();
         
         for(_res in _thisRole.grant)
         {
@@ -87,32 +86,42 @@ class Grant
                 {
                     if(_pol.action == action)
                     { 
-                        _policy = _pol;
-                        break;
+                        _policies.push(_pol);
                     }
                 }
             }    
         }
 
-        if(_policy == null)
+        if(_policies.length == 0)
             return new Permission(false, role, resourceName, null);
         
         if(any)
-        {
-            if(_policy.records != "any")
-                return new Permission(false, role, resourceName, null);   
+        {            
+            for(_policy in _policies)
+            {
+                if(_policy.records == "any")
+                {
+                    var p =  new Permission(true, role, resourceName, _policies);
+                    p.activePolicy = _policy;
+                    return p;
+                }     
+            }
+            return new Permission(false, role, resourceName, null);
         }
 
-        if(_policy.limit.amount == 0)
-            return new Permission(false, role, resourceName, null);
+        for(_policy in _policies)
+        {
+            if(_policy.limit.amount != 0)
+                return new Permission(true, role, resourceName, _policies);
+        }
         
-        return new Permission(true, role, resourceName, _policy);
+        return new Permission(false, role, resourceName, null);
 
     }
 
     public function access(user:Dynamic, permission:Permission, resource:Dynamic):Dynamic
     {  
-        if(permission == null || permission.policy == null || user == null)
+        if(permission == null || permission.allPolicies == null || user == null)
             throw "permission, its policy or user objects is null";
         if(user.role == null)
             throw ('user object has no role property');
@@ -123,7 +132,22 @@ class Grant
 
         var allow = false;
 
-        allow = checkRecord(user, permission, resource);
+        if(permission.activePolicy == null)
+        {
+            //try all policies until we find a policy allow access to the record
+            for(policy in permission.allPolicies)
+            {
+                permission.activePolicy = policy;
+                allow = checkRecord(user, permission, resource);
+                if(allow)
+                {
+                    //we found a policy that allow access to the record
+                    break;
+                }
+            }
+        }
+        else
+            allow = checkRecord(user, permission, resource);
         
         if(allow)
         {
@@ -139,17 +163,17 @@ class Grant
 
     private function checkRecord(user:Dynamic, permission:Permission, resource:Dynamic):Bool
     {
-        if(permission == null || permission.policy == null || permission.policy.records == "" || permission.policy.records == "none")
+        if(permission == null || permission.activePolicy.records == "none")
         {
             return false;
         }  
-        else if(permission.policy.records == "any")
+        else if(permission.activePolicy.records == "any")
         {
             return true;
         }
         else 
         {
-            var rule = permission.policy.records.toLowerCase();
+            var rule = permission.activePolicy.records.toLowerCase();
             rule = Utils.stripSpaces(rule);
 
             return evaluateConditions(user, permission, resource, parseConditions(rule));
@@ -412,18 +436,18 @@ class Grant
      private function checkLimit(user:Dynamic, permission:Permission, resource:Dynamic):Bool
     {
         var allow = false;
-        if(permission.policy.limit.amount == -1)
+        if(permission.activePolicy.limit.amount == -1)
         {
             //we do not care about limit
             allow = true;
         }
-        else if(permission.policy.limit.amount > 0)
+        else if(permission.activePolicy.limit.amount > 0)
         {
             if(connection == null)
                 throw "No connection to db provided, Grant needs to check create action limit";
             
-            var vars1 = permission.policy.limit.fieldToCount.split(".");
-            var vars2 = permission.policy.limit.valueToEqual.split(".");
+            var vars1 = permission.activePolicy.limit.fieldToCount.split(".");
+            var vars2 = permission.activePolicy.limit.valueToEqual.split(".");
             
             if(vars1.length != 2 && vars2.length > 2)
                 throw "error in limit criteria.";
@@ -444,7 +468,7 @@ class Grant
             {
                 sql = "SELECT count(*) FROM " + vars1[0] + " WHERE " + vars1[1] + " = " + value;
 
-                if(connectDB(sql) < permission.policy.limit.amount)
+                if(connectDB(sql) < permission.activePolicy.limit.amount)
                     allow = true;
             }
    

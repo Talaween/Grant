@@ -6,8 +6,6 @@
  * Allow more than one policy on same resource but different on records
  * Allow more than one user role
  * allow dynamic user roles creation from outide DB
- * filter sub-object based on role view on the sub-object by using ^ operator
- * 
  * 
  */
 
@@ -21,11 +19,13 @@ typedef Role = {role:String, grant:Array<Resource>};
 typedef Condition = {resource1:String, field1:String, operator:String, resource2:String, field2:String}; 
 typedef Conditions = {conditions:Array<Condition>, operators:Array<String>};
 
+
 class Grant 
 {
     private static var _instance:Grant;
 
     private var schema:{accesscontrol:Array<Role>};
+    private var connection:Connection;
 
     public static function getInstance():Grant
     {
@@ -110,7 +110,7 @@ class Grant
 
     }
 
-    public function access(user:Dynamic, permission:Permission, resource:Dynamic, ?connection:Connection):Dynamic
+    public function access(user:Dynamic, permission:Permission, resource:Dynamic):Dynamic
     {  
         if(permission == null || permission.policy == null || user == null)
             throw "permission, its policy or user objects is null";
@@ -123,21 +123,21 @@ class Grant
 
         var allow = false;
 
-        allow = checkRecord(user, permission, resource, connection);
+        allow = checkRecord(user, permission, resource);
         
         if(allow)
         {
-             allow = checkLimit (user, permission, resource, connection);
+             allow = checkLimit (user, permission, resource);
              if(allow)
              {
-                 return permission.filter(resource);
+                 return permission.filter(user, resource);
              }
         }
            
         return null;
     }
 
-    private function checkRecord(user:Dynamic, permission:Permission, resource:Dynamic, connection:Connection):Bool
+    private function checkRecord(user:Dynamic, permission:Permission, resource:Dynamic):Bool
     {
         if(permission == null || permission.policy == null || permission.policy.records == "" || permission.policy.records == "none")
         {
@@ -152,7 +152,7 @@ class Grant
             var rule = permission.policy.records.toLowerCase();
             rule = Utils.stripSpaces(rule);
 
-            return evaluateConditions(user, permission, resource, parseConditions(rule), connection);
+            return evaluateConditions(user, permission, resource, parseConditions(rule));
         }
     }
 
@@ -303,7 +303,7 @@ class Grant
         return allConditions;
     }
 
-    private function evaluateConditions(user:Dynamic, permission:Permission, resource:Dynamic, conditions:Conditions, connection:Connection):Bool
+    private function evaluateConditions(user:Dynamic, permission:Permission, resource:Dynamic, conditions:Conditions):Bool
     {
         var finalEvals = new Array<Bool>();
 
@@ -356,7 +356,7 @@ class Grant
 
                 var sql = "SELECT count(*) FROM " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
 
-                if(connectDB(sql, connection) > 0)
+                if(connectDB(sql) > 0)
                 {
                     finalEvals.push(true);
                 }
@@ -374,7 +374,7 @@ class Grant
 
                 var sql = "SELECT count(*) FROM " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
 
-                if(connectDB(sql, connection) > 0)
+                if(connectDB(sql) > 0)
                 {
                     finalEvals.push(true);
                 }
@@ -409,7 +409,7 @@ class Grant
 
         return finalResult;
     }
-     private function checkLimit(user:Dynamic, permission:Permission, resource:Dynamic, connection:Connection):Bool
+     private function checkLimit(user:Dynamic, permission:Permission, resource:Dynamic):Bool
     {
         var allow = false;
         if(permission.policy.limit.amount == -1)
@@ -444,7 +444,7 @@ class Grant
             {
                 sql = "SELECT count(*) FROM " + vars1[0] + " WHERE " + vars1[1] + " = " + value;
 
-                if(connectDB(sql, connection) < permission.policy.limit.amount)
+                if(connectDB(sql) < permission.policy.limit.amount)
                     allow = true;
             }
    
@@ -452,7 +452,7 @@ class Grant
 
         return allow;
     }
-    private function connectDB(sql, connection:Connection):Int
+    private function connectDB(sql:String):Int
     {
         if(connection == null)
             throw "no connection to db is provided.";
@@ -465,6 +465,15 @@ class Grant
             return 0;
 
         return results.results().length;
+    }
+
+    public function setConnection(connection:Connection)
+    {
+        this.connection = connection;
+    }
+    public function removeConnection()
+    {
+        this.connection = null;
     }
     
 }

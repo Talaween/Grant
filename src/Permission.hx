@@ -77,7 +77,7 @@ import Grant.Policy;
         return finalFields; 
     }  
 
-    public function filter(resource:Dynamic):Dynamic
+    public function filter(user:Dynamic, resource:Dynamic):Dynamic
     {
         var fields = policy.fields.split(",");
         var field:String;
@@ -104,9 +104,31 @@ import Grant.Policy;
 
             for(i in 0...len)
             {
-                if(fields[i].length > 0){
+                if(fields[i].length > 0)
+                {
+                    if(fields[i].indexOf("^") > 0)
+                    {
+                        var subs = fields[i].split("^");
+                        if(subs.length == 2)
+                        {
+                            var subObj = Reflect.field(resource, subs[0]);
+                            var grant = Grant.getInstance();
 
-                    if(fields[i].charAt(0) != "!")
+                            //currently it does not work if resource has another same resource type
+                            //as subobject in order to prevent infinite recursions
+                            if(subs[1] != this.resource)
+                            {
+                                var subPermission = grant.mayAccess(this.role, this.policy.action, subs[1]);
+
+                                if(subPermission.granted == true)
+                                {
+                                    var subObjCopy = grant.access(user, subPermission, subObj);
+                                    Reflect.setField(resourceCopy, subs[0], subObjCopy );
+                                }
+                            } 
+                        }
+                    }
+                    else if(fields[i].charAt(0) != "!")
                         Reflect.setField(resourceCopy, fields[i], Reflect.field(resource, fields[i]));
                     else
                     {

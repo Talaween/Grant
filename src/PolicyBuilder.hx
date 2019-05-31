@@ -11,7 +11,7 @@ class PolicyBuilder
         
     }
 
-    public function build(jsonData:String):Schema
+    public static function build(jsonData:String):Schema
     {
         var schema:Schema;
         try
@@ -25,7 +25,7 @@ class PolicyBuilder
                      for (policy in resource.policies)
                      {
                          policy.fields = checkFields(policy.fields);
-                         policy.conditions = parseConditions(policy.records);
+                         policy.conditions = parseConditions(Utils.stripSpaces(policy.records));
                          policy.limit.conditions = parseConditions(policy.limit.rule);
                      }
                  }
@@ -38,7 +38,7 @@ class PolicyBuilder
         return schema;
     }
 
-    private function parseConditions(cond:String):Conditions
+    private static function parseConditions(cond:String):Conditions
     {
         var len = cond.length;
         var conditionPart = 0;
@@ -46,7 +46,7 @@ class PolicyBuilder
         var allowedOperators = ["=", "!", ">", "<", ")", "("];
 
         var condition:Condition = {resource1: "", field1:"", operator:"", resource2:"", field2:""};
-        var allConditions:Conditions = {conditions : new Array<Condition>(), operators: new Array<String>()}
+        var allConditions:Conditions = {list : new Array<Condition>(), operators: new Array<String>()}
 
         var countOpenParanthesis = 0;
         var countCloseParanthesis = 0;
@@ -154,7 +154,7 @@ class PolicyBuilder
                 if(condition.field2 != "")
                     con1.field2 = condition.field2;
             
-                allConditions.conditions.push(con1);
+                allConditions.list.push(con1);
                 allConditions.operators.push(char);
 
                 //now reset condition for next one
@@ -176,7 +176,7 @@ class PolicyBuilder
             throw "Wrong matching of open and close paranthesis";
 
         if(condition.resource1 != ""  && condition.operator != "" && condition.resource2 != "" )
-            allConditions.conditions.push(condition);
+            allConditions.list.push(condition);
         else{
             throw "a field is empty in the last expression";
         }
@@ -184,7 +184,7 @@ class PolicyBuilder
         return allConditions;
     }
 
-    private function checkFields(fields:String):String
+    private static function checkFields(fields:String):String
     {
 
         fields = Utils.stripSpaces(fields);

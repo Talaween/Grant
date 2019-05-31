@@ -24,7 +24,7 @@ import Grant.Policy;
         this.role = role;
 
         if(resource != null)
-            this.resource = resource.toLowerCase();
+            this.resource = resource;
     }
     
     function get_activePolicy(){
@@ -38,8 +38,6 @@ import Grant.Policy;
 
     function set_activePolicy(policy:Policy){
         this.activePolicy = policy;
-        checkFields(activePolicy.fields);
-
         return activePolicy;
     }
     

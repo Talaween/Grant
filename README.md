@@ -21,7 +21,6 @@ Currently the library works with PHP and MYSQL target, in future release it will
 * ability to assign more than one policy on the same resource for the same role
 * ability to add limits to policy e.g. how many times to read a resource
 * library automatically checks for JSON data validity and warns of any errors
-* library automatically prioritize policies based on their access level
 * fast and performs well
 * works with any Haxe class including record macros and anonomous structures
 * supports PHP and MYSQL targets
@@ -42,43 +41,62 @@ haxelib install Grant
 
 var grant = Grant.getInstance();
 
-//if you want Grant to manage RBAC by accessing database 
-//you need to provide connection to the databse
+//set connection if you want Grant to manage RBAC by accessing database 
+
 grant.setConnection(connection);
 
-//first function to use is mayAccess
-//this function return a permission object that hold the RBAC data
-//the initial result is stored in permission.granted 
+//build the policy stored in json file
+
+var textualJsonData = sys.io.File.getContent('/path/to/json/policies/file.json');
+grant.buildPolicy(textualJsonData);
+
+//check if a role may access a resource
+//this function return a permission object that holds the RBAC data
+//the initial result is stored in permission.granted property
 //the value is true if there is a chance the user may access the resource
-//otherwise it is false
-//please note further database check is needed to confirm access to the resource
+//otherwise the value is false
+//please note further database checks is needed to confirm access to the resource
 
 var permission = grant.mayAccess('guest', 'read', 'article');
 
 ```
+### Building the JSON file
 
-## Running the tests
+all policies are stored in a single json file, you have to follow simple rules to build you policies
+
+below is an example of a RBAC policy:
+
+```js
+
+
+```
+Grant checks the policy for validity the first time you build it with buildPolicy function.
+
+it will throw errors if it finds any error in the policy structure.
+
+
+### Running the tests
 
 TODO add unit testing
 
-## Built With
+### Built With
 
 * [Haxe](http://www.haxe.org/) - The language used
 
-## Contributing
+### Contributing
 
 Please feel free to submit pull requests to us.
 
 
-## Authors
+### Authors
 
 * **Mahmoud Awad** - *Initial work* - [Talaween](https://github.com/talaween)
 
-## License
+### License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
 
-## Acknowledgments
+### Acknowledgments
 
 * Haxe Community
 * [accesscontrol](https://www.npmjs.com/package/accesscontrol) Lib on NPM

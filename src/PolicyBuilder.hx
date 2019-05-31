@@ -32,7 +32,8 @@ class PolicyBuilder
                          if(policy.limit.conditions.list.length > 1)
                              throw "no more than one condition is allowed in limit rule.";
                      }
-                     resource.policies = priorotizePolicies(resource.policies);
+                     //do not use auto priority now
+                    // resource.policies = priorotizePolicies(resource.policies);
                  }
              }
         }

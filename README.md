@@ -1,4 +1,5 @@
-# Grant HX  ![build passing](https://raw.githubusercontent.com/dwyl/repo-badges/master/highresPNGs/build-passing.png)
+# Grant HX  
+![build passing](https://raw.githubusercontent.com/dwyl/repo-badges/master/highresPNGs/build-passing.png)
 
 Role-based Access Control (RBAC) Library for Haxe, Inspired from [accesscontrol](https://www.npmjs.com/package/accesscontrol) Library on npm, however Grant HX brings more flexibity and features to manage RBAC.
 
@@ -10,7 +11,7 @@ Currently the library works with PHP and MYSQL target, in future release it will
 
 * all RBAC logic maintained in a single JSON file
 * friendly json format and structure
-* only two lines of code are needed to be written to manage RBAC in code
+* only few lines of code are needed to be written to manage RBAC in code
 * the library will do all the required database inquiries to check for the permissions
 * ability to use the library without database checking
 * fine-grained access control to specific records of a table by applying conditions 
@@ -38,6 +39,7 @@ haxelib install Grant
 
 ```
 //get grant instance
+
 var grant = Grant.getInstance();
 
 //if you want Grant to manage RBAC by accessing database 
@@ -50,6 +52,7 @@ grant.setConnection(connection);
 //the value is true if there is a chance the user may access the resource
 //otherwise it is false
 //please note further database check is needed to confirm access to the resource
+
 var permission = grant.mayAccess('guest', 'read', 'article');
 
 ```

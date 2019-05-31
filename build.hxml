@@ -2,6 +2,7 @@
 
 Grant
 Permission
+PolicyBuilder
 
 -php c:/wamp64/www/semsem_v0.5
 -D php7

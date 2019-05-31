@@ -1,3 +1,4 @@
+import Grant.Policy;
 import Grant.Schema;
 import Grant.Conditions;
 import Grant.Condition;
@@ -27,7 +28,11 @@ class PolicyBuilder
                          policy.fields = checkFields(policy.fields);
                          policy.conditions = parseConditions(Utils.stripSpaces(policy.records));
                          policy.limit.conditions = parseConditions(policy.limit.rule);
+
+                         if(policy.limit.conditions.list.length > 1)
+                             throw "no more than one condition is allowed in limit rule.";
                      }
+                     resource.policies = priorotizePolicies(resource.policies);
                  }
              }
         }
@@ -38,6 +43,45 @@ class PolicyBuilder
         return schema;
     }
 
+    private static function priorotizePolicies(policies:Array<Policy>):Array<Policy>
+    {
+        var priorotized = new Array<Policy>();
+        var leastPriority = new Array<Policy>();
+        var priorityValue = new Array<Int>();
+
+        var maxPriority = 1000;
+
+        for(policy in policies)
+        {
+            if(policy.records.toLowerCase() == 'any')
+                priorotized.push(policy);
+            else if(policy.records.toLowerCase() == 'none')
+                leastPriority.push(policy);
+            else
+            {
+                var pFields = policy.fields.split(',');
+                if(pFields[0] == '*')
+                    priorityValue.push(maxPriority-pFields.length);
+                else
+                    priorityValue.push(pFields.length);
+            }
+           
+        }
+
+        while(priorityValue.length > 0)
+        {
+            var indexBiggest = Utils.maxIndex(priorityValue);
+            priorotized.push(policies[indexBiggest]);
+            priorityValue.splice(indexBiggest, 1);
+        }
+
+        for(lp in leastPriority)
+        {
+            priorotized.push(lp);
+        }
+        return priorotized;
+        
+    }
     private static function parseConditions(cond:String):Conditions
     {
         var len = cond.length;

@@ -15,7 +15,7 @@ typedef Conditions = {list:Array<Condition>, operators:Array<String>};
 typedef Limit = {amount:Int, rule:String, ?conditions:Conditions};
 typedef Policy = {action:String, records:String, fields:String, limit:Limit, ?conditions:Conditions};   
 typedef Resource = {resource:String, policies:Array<Policy>};
-typedef Role = {role:String, grant:Array<Resource>};  
+typedef Role = {role:String, ?inherits:String, grant:Array<Resource>};  
 typedef Schema = {accesscontrol:Array<Role>};
 
 class Grant 
@@ -51,6 +51,7 @@ class Grant
         
         //find the role in the schema
         var _thisRole:Role = null;
+        var _inherited:Role = null;
 
         for(_r in schema.accesscontrol)
         {
@@ -60,15 +61,29 @@ class Grant
                 break;
             }
         }
+
+        //if the role inherits from another role find it
+        if(_thisRole.inherits != null && _thisRole.inherits != "")
+        {
+            for(_rInh in schema.accesscontrol)
+            {
+                if(_rInh.role == _thisRole.inherits)
+                {
+                    _inherited = _rInh;
+                    break;
+                }
+            }
+        }
         
         //if we finish loop but could not find the role
         if(_thisRole == null){
             return  new Permission(false, role, resourceName, null);
         }
             
-        //find all policies on this resource for this role 
+        //find all policies on this resource for this role and its inheritied  
         var _policies = new Array<Policy>();
         
+        //priority to add new policies before the ones which are inherited as they extend the inherited role
         for(_res in _thisRole.grant)
         {
             if(_res.resource == resourceName)
@@ -83,6 +98,20 @@ class Grant
             }    
         }
 
+        for(_resInh in _inherited.grant)
+        {
+            if(_resInh.resource == resourceName)
+            {
+                for (_polInh in _resInh.policies)
+                {
+                    if(_polInh.action == action)
+                    { 
+                        _policies.push(_polInh);
+                    }
+                }
+            }    
+        }
+
         if(_policies.length == 0)
             return new Permission(false, role, resourceName, null);
         
@@ -90,7 +119,7 @@ class Grant
         {            
             for(_policy in _policies)
             {
-                if(_policy.records == "any")
+                if(_policy.records.toLowerCase() == "any")
                 {
                     var p =  new Permission(true, role, resourceName, _policies);
                     p.activePolicy = _policy;
@@ -154,11 +183,11 @@ class Grant
 
     private function checkRecord(user:Dynamic, permission:Permission, resource:Dynamic):Bool
     {
-        if(permission == null || permission.activePolicy.records == "none")
+        if(permission == null || permission.activePolicy.records.toLowerCase() == "none")
         {
             return false;
         }  
-        else if(permission.activePolicy.records == "any")
+        else if(permission.activePolicy.records.toLowerCase() == "any")
         {
             return true;
         }

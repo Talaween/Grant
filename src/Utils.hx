@@ -18,6 +18,29 @@ class Utils
 		return -1;
 	}
 
+	public static function maxIndex(array:Array<Int>):Int
+	{
+		var max:Int;
+		var index:Int;
+		var counter:Int;
+
+		max = array[0];
+		index = 0;
+		counter = 0;
+
+		for (num in array)
+		{
+			if(num > max)
+			{
+				max = num;
+				index = counter;
+			}
+			counter++;
+		}
+
+		return index;
+	}
+
 	public static function stripSpaces(str:String):String
 	{
 

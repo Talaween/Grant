@@ -37,7 +37,7 @@ haxelib install Grant
 ```
 ### how to use
 
-```
+```js
 //get grant instance
 
 var grant = Grant.getInstance();

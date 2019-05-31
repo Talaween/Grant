@@ -3,7 +3,6 @@
  * ...
  * @author Mahmoud Awad
  * 
- * Allow more than one policy on same resource but different on records
  * Allow more than one user role
  * allow dynamic user roles creation from outide DB
  * 
@@ -11,20 +10,19 @@
 
  import sys.db.Connection;
 
-typedef Limit = {amount:Int, fieldToCount:String, valueToEqual:String}
-typedef Policy = {action:String, records:String, fields:String, limit:Limit};   
-typedef Resource = {resource:String, policies:Array<Policy>};
-typedef Role = {role:String, grant:Array<Resource>};    
-
 typedef Condition = {resource1:String, field1:String, operator:String, resource2:String, field2:String}; 
 typedef Conditions = {conditions:Array<Condition>, operators:Array<String>};
+typedef Limit = {amount:Int, rule:String, ?conditions:Conditions};
+typedef Policy = {action:String, records:String, fields:String, limit:Limit, ?conditions:Conditions};   
+typedef Resource = {resource:String, policies:Array<Policy>};
+typedef Role = {role:String, grant:Array<Resource>};  
+typedef Schema = {accesscontrol:Array<Role>};
 
 class Grant 
 {
     private static var _instance:Grant;
-
-    private var schema:{accesscontrol:Array<Role>};
     private var connection:Connection;
+    private var schema:Schema;
 
     public static function getInstance():Grant
     {
@@ -41,14 +39,7 @@ class Grant
     
     public function buildPolicy(schema:String)
     {
-        try
-        {
-             this.schema = haxe.Json.parse(schema);
-        }
-        catch(ex:String)
-        {
-            throw "Invalid Json format";
-        }
+        
     }
     
     public function mayAccess(role:String, action:String, resourceName:String, any:Bool = false):Permission
@@ -116,7 +107,6 @@ class Grant
         }
         
         return new Permission(false, role, resourceName, null);
-
     }
 
     public function access(user:Dynamic, permission:Permission, resource:Dynamic):Dynamic
@@ -178,153 +168,6 @@ class Grant
 
             return evaluateConditions(user, permission, resource, parseConditions(rule));
         }
-    }
-
-    public function parseConditions(cond:String):Conditions
-    {
-        var len = cond.length;
-        var conditionPart = 0;
-
-        var allowedOperators = ["=", "!", ">", "<", ")", "("];
-
-        var condition:Condition = {resource1: "", field1:"", operator:"", resource2:"", field2:""};
-
-        var allConditions:Conditions = {conditions : new Array<Condition>(), operators: new Array<String>()}
-
-        var countOpenParanthesis = 0;
-        var countCloseParanthesis = 0;
-
-        var i = 0;
-        while(i < len)
-        {
-            var char = cond.charAt(i);
-           
-            if(Utils.isLetterOrDigit(char) )
-            {
-               switch (conditionPart)
-               {
-                   case 0:
-                        //do not accept digit to start variable names
-                        if(condition.resource1.length == 0 && Utils.isDigit(char))
-                            throw "resource1 name should not start with a digit";
-                        condition.resource1 += char;
-                   case 1:
-                        if(condition.field1.length == 0 && Utils.isDigit(char))
-                             throw "field1 name should not start with a digit";
-                        condition.field1 += char;
-                   case 2:
-                        if(condition.resource2.length == 0 && Utils.isDigit(char))
-                            throw "resource2 name should not start with a digit";
-                        condition.resource2 += char;
-                   case 3:
-                        if(condition.field2.length == 0 && Utils.isDigit(char))
-                            throw "field2 name should not start with a digit";
-                        condition.field2 += char;
-                    case 4:
-                        throw "too many dots have been detected";
-               }
-            }
-            else if(Utils.linearSearch(allowedOperators, char) > -1)
-            {
-                switch(char)
-                {
-                    case "=":
-                        condition.operator = "=";
-                        conditionPart++;
-                    case "!":
-                       if(i < len-1 && cond.charAt(i+1) == "=")
-                        {
-                            condition.operator = "!=";
-                            i++;
-                            conditionPart++;  
-                        }
-                        else
-                             throw "wrong placement of ! operator";  
-                    case ">" | "<":
-                        if(i < len-1 && cond.charAt(i+1) == "=")
-                        {
-                            condition.operator = char + "=";
-                            i++;
-                            conditionPart++;  
-                        }
-                        else if(i < len-1)
-                        {
-                            condition.operator = char;
-                            conditionPart++;
-                        }
-                        else
-                            throw "wrong placement of > or < operators";
-                    case "(":
-                        countOpenParanthesis++;
-                       // if(i != 0 && (cond.charAt(i-1) != "&" && cond.charAt(i-1) != "|") )
-                         //   throw "Wrong placement of paranthesis (.";
-                    case ")":
-                        countCloseParanthesis++;
-                       // if(i!= len -1 && (cond.charAt(i+1) != "&" && cond.charAt(i+1) != "|") )
-                        //   throw "Wrong placement of paranthesis ).";
-                }
-            }
-            else if(char == ".")
-            {
-                conditionPart++;
-            }
-            else if( (char == "&" || char == "|"))
-            {
-                if(conditionPart != 3)
-                    throw "wrong placement of & or | characters in the condition expression";
-
-                var con1:Condition = {resource1: "", field1:"", operator:"", resource2:"", field2:""};
-
-                //copy the condition before resetting it
-                if(condition.resource1 != "")
-                    con1.resource1 = condition.resource1;
-                else 
-                    throw "resource1 is empty";
-                
-                if(condition.field1 != "")
-                    con1.field1 = condition.field1;
-               
-                if(condition.operator != "")
-                    con1.operator = condition.operator;
-                else 
-                     throw "operator is empty";
-
-                if(condition.resource2 != "")
-                    con1.resource2 = condition.resource2;
-                else 
-                     throw "resource2 is empty";
-                
-                if(condition.field2 != "")
-                    con1.field2 = condition.field2;
-            
-                allConditions.conditions.push(con1);
-                allConditions.operators.push(char);
-
-                //now reset condition for next one
-                condition.resource1 = "";
-                condition.field1 = "";
-                condition.operator = "";
-                condition.resource2 = "";
-                condition.field2 = "";
-
-                conditionPart = 0;
-            }
-            else
-                throw "unallowed character has been used in the condition expression:" + char ;
-
-            i++;
-        }
-
-        if(countOpenParanthesis != countCloseParanthesis)
-            throw "Wrong matching of open and close paranthesis";
-
-        if(condition.resource1 != ""  && condition.operator != "" && condition.resource2 != "" )
-            allConditions.conditions.push(condition);
-        else{
-            throw "a field is empty in the last expression";
-        }
-    
-        return allConditions;
     }
 
     private function evaluateConditions(user:Dynamic, permission:Permission, resource:Dynamic, conditions:Conditions):Bool
@@ -433,7 +276,8 @@ class Grant
 
         return finalResult;
     }
-     private function checkLimit(user:Dynamic, permission:Permission, resource:Dynamic):Bool
+     
+    private function checkLimit(user:Dynamic, permission:Permission, resource:Dynamic):Bool
     {
         var allow = false;
         if(permission.activePolicy.limit.amount == -1)

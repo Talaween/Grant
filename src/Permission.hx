@@ -49,43 +49,7 @@ import Grant.Policy;
     function set_message(message:String){
         return this.message = message;
     }
-    private function checkFields(fields:String):String
-    {
-
-        fields = Utils.stripSpaces(fields);
-
-        var fieldsArray = fields.split(",");
-        var includedFields = new Array<String>();
-        var excludedFields = new Array<String>();
-        var finalFields = "";
-
-        for(field in fieldsArray)
-        {
-            if(field == "*")
-            {
-                finalFields = "*, " + finalFields;
-            }
-            else if(field.charAt(0) != '!')
-            {
-                if(Utils.linearSearch(includedFields, field) == -1)
-                {
-                    includedFields.push(field);
-                    finalFields += field + ",";
-                }
-            }
-            else 
-            {
-                if(Utils.linearSearch(excludedFields, field) == -1)
-                {
-                    excludedFields.push(field);
-                    finalFields += field + ",";
-                }
-            }
-        }
-        
-        return finalFields; 
-    }  
-
+    
     public function filter(user:Dynamic, resource:Dynamic):Dynamic
     {
         if(activePolicy == null)

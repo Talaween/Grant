@@ -8,7 +8,7 @@
  * 
  */
 
- import sys.db.Connection;
+import sys.db.Connection;
 
 typedef Condition = {resource1:String, field1:String, operator:String, resource2:String, field2:String}; 
 typedef Conditions = {list:Array<Condition>, operators:Array<String>};
@@ -97,21 +97,23 @@ class Grant
                 }
             }    
         }
-
-        for(_resInh in _inherited.grant)
+        if(_inherited != null)
         {
-            if(_resInh.resource == resourceName)
+            for(_resInh in _inherited.grant)
             {
-                for (_polInh in _resInh.policies)
+                if(_resInh.resource == resourceName)
                 {
-                    if(_polInh.action == action)
-                    { 
-                        _policies.push(_polInh);
+                    for (_polInh in _resInh.policies)
+                    {
+                        if(_polInh.action == action)
+                        { 
+                            _policies.push(_polInh);
+                        }
                     }
-                }
-            }    
+                }    
+            }
         }
-
+        
         if(_policies.length == 0)
             return new Permission(false, role, resourceName, null);
         
@@ -142,7 +144,10 @@ class Grant
     public function access(user:Dynamic, permission:Permission, resource:Dynamic):Dynamic
     {  
         if(permission == null || permission.allPolicies == null || user == null)
-            return null;
+        {
+            trace(permission.granted);
+             return null;
+        }
         
         if(user.role == null)
             throw ('user object has no role property');

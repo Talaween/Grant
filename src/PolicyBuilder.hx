@@ -17,30 +17,32 @@ class PolicyBuilder
         var schema:Schema;
         try
         {
-             schema = haxe.Json.parse(jsonData);
-             
-             for(role in schema.accesscontrol)
-             {
-                 for (resource in role.grant)
-                 {
-                     for (policy in resource.policies)
-                     {
-                         policy.fields = checkFields(policy.fields);
-                         policy.conditions = parseConditions(Utils.stripSpaces(policy.records));
-                         policy.limit.conditions = parseConditions(policy.limit.rule);
-
-                         if(policy.limit.conditions.list.length > 1)
-                             throw "no more than one condition is allowed in limit rule.";
-                     }
-                     //do not use auto priority now
-                    // resource.policies = priorotizePolicies(resource.policies);
-                 }
-             }
+            schema = haxe.Json.parse(jsonData);
         }
         catch(ex:String)
         {
             throw "Invalid Json format";
         }
+             
+        for(role in schema.accesscontrol)
+        {
+            for (resource in role.grant)
+            {
+                for (policy in resource.policies)
+                {
+                    policy.fields = checkFields(policy.fields);
+                    policy.conditions = parseConditions(Utils.stripSpaces(policy.records));
+                    policy.limit.conditions = parseConditions(policy.limit.rule);
+
+                    if(policy.limit.conditions != null && policy.limit.conditions.list != null && policy.limit.conditions.list.length > 1)
+                        throw "no more than one condition is allowed in limit rule.";
+                }
+                //do not use auto priority now
+            // resource.policies = priorotizePolicies(resource.policies);
+            }
+        }
+        
+        
         return schema;
     }
 
@@ -85,6 +87,10 @@ class PolicyBuilder
     }
     private static function parseConditions(cond:String):Conditions
     {
+        
+        if(cond == null || cond == '' || cond == 'any' || cond == 'none')
+            return null;
+        
         var len = cond.length;
         var conditionPart = 0;
 
@@ -223,7 +229,7 @@ class PolicyBuilder
         if(condition.resource1 != ""  && condition.operator != "" && condition.resource2 != "" )
             allConditions.list.push(condition);
         else{
-            throw "a field is empty in the last expression";
+            throw "a field is empty in the condition: " + cond;
         }
     
         return allConditions;

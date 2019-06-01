@@ -18,10 +18,12 @@ import Grant.Policy;
     @:isVar public var activePolicy(get, set):Policy;
     @:isVar private var message(get, set):String;
    
-    public function new(granted:Bool, role:String, resource:String, policies:Array<Policy>){
+    public function new(granted:Bool, role:String, resource:String, policies:Array<Policy>)
+    {
         
         this.granted = granted;
         this.role = role;
+        this.allPolicies = policies;
 
         if(resource != null)
             this.resource = resource;
@@ -94,6 +96,7 @@ import Grant.Policy;
                             {
                                 var subPermission = grant.mayAccess(this.role, this.activePolicy.action, subs[1]);
 
+                                trace("subobject permission is:" + subPermission.granted);
                                 if(subPermission.granted == true)
                                 {
                                     var subObjCopy = grant.access(user, subPermission, subObj);

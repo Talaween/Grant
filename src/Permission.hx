@@ -124,7 +124,19 @@ import Grant.Policy;
         if(activePolicy == null)
             return null;
 
-        return activePolicy.fields.split(",");
+        var fields = activePolicy.fields.split(",");
+
+        var len = fields.length;
+
+        for(i in 0...len)
+        {
+            if(fields[i].indexOf("^") > -1)
+            {
+                fields[i] = fields[i].split("^")[0];
+            }
+        }
+
+        return fields;
     }
      
  }

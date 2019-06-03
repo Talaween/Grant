@@ -1,6 +1,8 @@
 # Grant HX  
 <a href="#"><img src="https://img.shields.io/travis/onury/accesscontrol.svg?branch=master&style=flat-square" alt="Build Status" /></a>
 
+### WIP note yet ready for production
+
 Role-based Access Control (RBAC) Library for Haxe, Inspired from [accesscontrol](https://www.npmjs.com/package/accesscontrol) Library on npm, however Grant HX brings more flexibity and features to manage RBAC.
 
 The idea of Grant is that all RBAC should be kept outside the code, it is maintained in a JSON file. RBAC can be easily changed by only modifying the JSON data.
@@ -59,25 +61,132 @@ grant.buildPolicy(textualJsonData);
 
 var permission = grant.mayAccess('guest', 'read', 'article');
 
+//then you can use the permission object to actually access the resource
+//you need to supply the user object and it should has a role propery that matches the same role used to create 
+//the permission object, if user has no role property an exception is thrown
+//you also need to supply the resource the user would like to access
+//the return value is a new object based on whay user can access from the resource
+
+var accessibleObject = grant.access(user, permission, article);
+
+//in case you want to know which fields the user can access for the specified action
+
+var fields = permsision.getFields();
+
+//you can also filter what user can access from resource without having Grant to access DB
+// in this case you will need to do the actual check for user permission by yourself
+//e.g. is the user actual owner?
+
+var accessibleObject = permission.filter(user, article);
+
 ```
-### Building the JSON file
 
-all policies are stored in a single json file, you have to follow simple rules to build you policies
+### Roles for Json file structure
 
-below is an example of a RBAC policy:
+all access control data are stored in a json file, it is your resposibility to prevent access or modifications to this file
+
+Grant checks the policy for validity the first time you build it with buildPolicy function. it will throw errors if it finds any error in the policy structure. the strucure is easy, the json file has the following object:
 
 ```js
 
+{"accesscontrol": Array<Roles>}
 
 ```
-Grant checks the policy for validity the first time you build it with buildPolicy function.
+the main propery called accesscontrol is an array of Role objects, the Role object is as follow:
 
-it will throw errors if it finds any error in the policy structure.
+```js
 
+{"role": String, "inherits":String, "grant":Array<Resource>}
 
-### Running the tests
+```
 
-TODO add unit testing
+the Role object has the following properties:
+
+* role: name of the role
+* inherits: an optional field which is the name of the role to extend/inherit from
+* grant: an array of Resource objects
+
+the Resource object has the following structure and fields:
+
+```js
+
+{"resource": String, "policies":Array<Policy>}
+
+```
+
+* resource: the name of the resource
+* policies: an array of Policy objects
+
+the Policy object has the following structure and fields:
+
+```js
+
+{"action": String, "fields":String, "records":String, "limit":Limit}
+
+```
+
+* action: one of the following create/read/update/delete
+* fields: the fields the role can access from the resource, writting in this format e.g. "title, mainText, publishedDate"
+* records: the condition(s) that allow the role to access this resource, see below for explanations on conditions
+* limit: is a Limit object
+
+the Limit object has the following structure and fields:
+
+```js
+
+{"amount": Int, "rule":String}
+
+```
+
+* amount: the number of times the role can perform the action on the resource, use -1 for unlimited, 0 can be used to ban
+* rule: the condition need to cound the limit, see below for explanations on conditions
+
+you can specify more than one role on the same resource for the same role, using the record property allow you to decide which rows/records int he table the user can acess. for example an author role will allow the user to read any article and see its title, textBody and publishedDate, and another read policy that is applied to his own created articles where he will be able to see title, textBody, publishedDate and some notes.
+
+### Conditions
+
+the conditions can be specified on two fields:
+
+* record field of a Policy object
+* rule field of a limit object
+
+the condition allows Grant to decide whether the user has access to a specific row/recod in the table or has reached the limit. in other words, conditions is the part that you may use after WHERE clause in a SQL statement
+
+there are few simple rules how to write your conditions to ensure that Grant can get the correct answer for you:
+
+if you are checking any values that is on User or the actual resource object than you should use the following syntax:
+
+e.g. check if the user is the actual author of the article
+
+```js
+....
+"records" : "article.auhthorId=user.Id",
+....
+```
+note that we have used the word  "user" to refer to the User obejct and the actual resource name as it appears in the json file (case-sensitive) bacuause we are accessing the values directly from the objects so no need to connect to database.
+
+if you are checking values from any other tables, then you have to use the table name as it is appears in the database, remeber user and resource values can be used with table names in conditons but they always need to be on the left side of the condition 
+
+e.g. check if the user can access an picture which only allowed for users who were tagged in:
+
+```js
+....
+"records" : "tags.imageId=picture.id&tags.userId=user.Id",
+....
+```
+
+assuming the user with Id 7 trying to access the picture with Id 145, the following select statement will be generated and executed in the database:
+
+```sql
+"SELECT count(*) FROM tags WHERE tags.imageId = 145 AND tags.userId=7"
+```
+
+in this example there should be a table called tags in the database with the fields supplied.
+
+you can chain consitions using "&" and "" operators. and you can use "(" ")" to set priority.
+
+Grant throws exception if there is an syntax error in any condition when building the policy
+
 
 ### Built With
 

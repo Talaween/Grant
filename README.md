@@ -1,7 +1,7 @@
 # Grant HX  
 <a href="#"><img src="https://img.shields.io/travis/onury/accesscontrol.svg?branch=master&style=flat-square" alt="Build Status" /></a>
 
-### WIP note yet ready for production
+### WIP not yet ready for production
 
 Role-based Access Control (RBAC) Library for Haxe, Inspired from [accesscontrol](https://www.npmjs.com/package/accesscontrol) Library on npm, however Grant HX brings more flexibity and features to manage RBAC.
 
@@ -65,7 +65,7 @@ var permission = grant.mayAccess('guest', 'read', 'article');
 //you need to supply the user object and it should has a role propery that matches the same role used to create 
 //the permission object, if user has no role property an exception is thrown
 //you also need to supply the resource the user would like to access
-//the return value is a new object based on whay user can access from the resource
+//the return value is a new object based on what the user can access from the resource
 
 var accessibleObject = grant.access(user, permission, article);
 
@@ -126,7 +126,7 @@ the Policy object has the following structure and fields:
 ```
 
 * action: one of the following create/read/update/delete
-* fields: the fields the role can access from the resource, writting in this format e.g. "title, mainText, publishedDate"
+* fields: the fields the role can access from the resource, writting in this format e.g. "title, mainText, publishedDate". you can also specify all fields "*" and exclude some fields with "!", e.g. "*, !note"
 * records: the condition(s) that allow the role to access this resource, see below for explanations on conditions
 * limit: is a Limit object
 
@@ -178,15 +178,31 @@ e.g. check if the user can access an picture which only allowed for users who we
 assuming the user with Id 7 trying to access the picture with Id 145, the following select statement will be generated and executed in the database:
 
 ```sql
-"SELECT count(*) FROM tags WHERE tags.imageId = 145 AND tags.userId=7"
+"SELECT count(*) FROM tags WHERE imageId = 145 AND userId=7"
 ```
 
 in this example there should be a table called tags in the database with the fields supplied.
 
-you can chain consitions using "&" and "" operators. and you can use "(" ")" to set priority.
+you can chain consitions using "&" and "|" operators. and you can use "(" ")" to set priority.
 
 Grant throws exception if there is an syntax error in any condition when building the policy
 
+the same apply to the conditions set for the Limit object, however here you set the condition to count the limit, which will always require connecting to the database:
+
+e.g. if user not allowed to create more than 10 articles, the conditon should be:
+
+```js
+....
+"records" : "article.authorId=user.Id",
+....
+```
+even though we refer to the resource and user objects, this will make Grant to generate the following SQL statement:
+
+```sql
+"SELECT count(*) FROM article WHERE authorId = 7"
+```
+
+note that placing article.authorId on the right side of the condition is important to generate the correct sql statement
 
 ### Built With
 

@@ -183,7 +183,7 @@ assuming the user with Id 7 trying to access the picture with Id 145, the follow
 
 in this example there should be a table called tags in the database with the fields supplied.
 
-you can chain consitions using "&" and "|" operators. and you can use "(" ")" to set priority.
+you can chain consitions using "&" and "|" operators. currently using paranthesis "(" ")" to group conditions does not wprk.
 
 Grant throws exception if there is an syntax error in any condition when building the policy
 

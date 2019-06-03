@@ -198,19 +198,32 @@ class Grant
         }
         else 
         {            
-            return evaluateFinalResult(permission.activePolicy.conditions, runConditions(user, permission, resource));
+            return (runConditions(user, permission, resource) > 0 ? true : false);
         }
     }
 
-    private function runConditions(user:Dynamic, permission:Permission, resource:Dynamic):Array<Int>
+    private function runConditions(user:Dynamic, permission:Permission, resource:Dynamic, ?checkLimit:Bool):Int
     {
-        var finalEvals = new Array<Int>();
+        //TODO currently we are ignoring grouping conditions with ( )
+        var finalEval = -1;
+        var sql = "";
+        var counter = 0;
 
         for(cond in permission.activePolicy.conditions.list)
         {
             if( cond.resource1.toLowerCase() == 'user'  && cond.resource2 == permission.resource )
             {
-                if(cond.field1 != '' && cond.field2 != '')
+                if(checkLimit)
+                {
+                    var resourcePart = Reflect.field(resource, cond.field2);
+                    
+                    if(resourcePart == null)
+                        throw "record expression is wrong, " + cond.resource2 + " is not part of " + permission.resource + " class";
+
+                    var sql = "SELECT count(*) FROM " + cond.resource1 + " WHERE " + cond.field1 + " = " + resourcePart;
+
+                }
+                else if(cond.field1 != '' && cond.field2 != '')
                 {
                     var part1 = Reflect.field(user, cond.field1);
                     var part2 = Reflect.field(resource, cond.field2);
@@ -221,13 +234,22 @@ class Grant
                     if(part2 == null)
                         throw "record expression is wrong, " + cond.field2 + " is not part of " + permission.resource + " class";
                     
-                    finalEvals.push((part1 == part2 ? 1:0));
-
+                    finalEval = (part1 == part2 ? 1:0);
                 }
             }
             else if( cond.resource2.toLowerCase() == 'user'  && cond.resource1 == permission.resource )
             {
-                if(cond.field1 != '' && cond.field2 != '')
+                if(checkLimit)
+                {
+                    var userPart = Reflect.field(user, cond.field2);
+                    
+                    if(userPart == null)
+                        throw "record expression is wrong, " + cond.field2 + " is not part of user class";
+
+                    var sql = "SELECT count(*) FROM " + cond.resource1 + " WHERE " + cond.field1 + " = " + userPart;
+
+                }
+                else if(cond.field1 != '' && cond.field2 != '')
                 {
                     var part1 = Reflect.field(user, cond.field2);
                     var part2 = Reflect.field(resource, cond.field1);
@@ -238,7 +260,7 @@ class Grant
                     if(part2 == null)
                         throw "record expression is wrong, " + cond.field1 + " is not part of " + permission.resource + " class";
                     
-                    finalEvals.push((part1 == part2 ? 1:0));
+                    finalEval = (part1 == part2 ? 1:0);
                 }
             }
             else if(cond.resource2.toLowerCase() == 'user' && cond.resource1 != permission.resource)
@@ -248,9 +270,16 @@ class Grant
                  if(part2 == null)
                     throw "record expression is wrong, " + cond.field2 + " is not part of user class";
 
-                var sql = "SELECT count(*) FROM " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
-
-                finalEvals.push(connectDB(sql));
+                if(sql == "")
+                    sql = "SELECT count(*) FROM " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
+                else
+                {
+                    switch (cond.operator)
+                    {
+                        case "&": sql += " AND " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
+                        case "":  sql += " OR " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
+                    }
+                }
 
             }
             else if(cond.resource2 == permission.resource  && cond.resource1.toLowerCase() != 'user')
@@ -260,46 +289,46 @@ class Grant
                  if(part2 == null)
                     throw "record expression is wrong, " + cond.field2 + " is not part of " + permission.resource;
 
-                var sql = "SELECT count(*) FROM " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
-
-                finalEvals.push(connectDB(sql));
-
+                if(sql == "")
+                    sql = "SELECT count(*) FROM " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
+                else
+                {
+                    switch (cond.operator)
+                    {
+                        case "&": sql += " AND " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
+                        case "":  sql += " OR " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
+                    }
+                }
             }
             else
             {
                 throw "wrong expression in the condition";
             }
+
+            counter++;
            
         }//end for
 
-        return finalEvals;
-       
-    }
-
-    private function evaluateFinalResult(conditions:Conditions, results:Array<Int>):Bool
-    {
-
-        var i = 0;
-        var len = results.length;
-        var finalResult = false;
-        //finally if we have many conditions evaluate them all.
-        while(i < len)
+        if(finalEval != -1 && sql != "")
         {
-            if(i == 0)
-               finalResult = (results[i] > 0 ? true:false);
-            else
-            {
-                var boolVal = (results[i] > 0 ? true:false);
-                switch(conditions.operators[i-1])
-                {
-                    case "&": finalResult = finalResult && boolVal;
-                    case "|": finalResult = finalResult || boolVal;
-                }
-            }
-            i++;
+            //some condition used resourceUser values and another needs a connection to DB 
+            //TODO: how to evaluate this case
+           
+
+        }
+        else if(finalEval == -1 && sql != "" )
+        {
+            //only connect sql is required
+            finalEval = connectDB(sql);
+        }
+        else if(finalEval == -1 && sql == "")
+        {
+            //nothing has been used
+            finalEval = 0;
         }
 
-        return finalResult;
+        return finalEval;
+       
     }
      
     private function checkLimit(user:Dynamic, permission:Permission, resource:Dynamic):Bool
@@ -317,7 +346,7 @@ class Grant
             
             var result = runConditions(user, permission, resource);
 
-            return (result[0] > 0 ? true:false);
+            return (result > 0 ? true:false);
 
         } 
         else if(permission.activePolicy.limit.amount == 0)

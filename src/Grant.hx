@@ -344,9 +344,7 @@ class Grant
             if(connection == null)
                 throw "No connection to db provided, Grant needs to check create action limit";
             
-            var result = runConditions(user, permission, resource);
-
-            return (result > 0 ? true:false);
+            return (runConditions(user, permission, resource) > 0 ? true: false);
 
         } 
         else if(permission.activePolicy.limit.amount == 0)

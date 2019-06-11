@@ -1,5 +1,6 @@
-import Grant.Policy;
+package grant;
 
+import grant.Grant.Policy;
 /**
  * ...
  * @author Mahmoud Awad

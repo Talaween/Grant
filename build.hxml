@@ -1,8 +1,9 @@
 -cp src
 
-Grant
-Permission
-PolicyBuilder
+grant.Grant
+grant.Permission
+grant.PolicyBuilder
+grant.Utils
 
 -php c:/wamp64/www/semsem_v0.5
 -D php7

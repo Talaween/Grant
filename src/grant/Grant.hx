@@ -1,4 +1,4 @@
-
+package grant;
 /**
  * ...
  * @author Mahmoud Awad
@@ -9,6 +9,7 @@
  */
 
 import sys.db.Connection;
+import grant.*;
 
 typedef Condition = {resource1:String, field1:String, operator:String, resource2:String, field2:String}; 
 typedef Conditions = {list:Array<Condition>, operators:Array<String>};
@@ -188,7 +189,7 @@ class Grant
 
     private function checkRecord(user:Dynamic, permission:Permission, resource:Dynamic):Bool
     {
-        if(permission == null || permission.activePolicy.records.toLowerCase() == "none")
+        if(permission.activePolicy.records == null || permission.activePolicy.records.toLowerCase() == "none")
         {
             return false;
         }  

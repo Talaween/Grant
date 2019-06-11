@@ -1,7 +1,9 @@
-import Grant.Policy;
-import Grant.Schema;
-import Grant.Conditions;
-import Grant.Condition;
+package grant;
+
+import grant.Grant.Policy;
+import grant.Grant.Schema;
+import grant.Grant.Conditions;
+import grant.Grant.Condition;
 
 
 class PolicyBuilder
@@ -253,7 +255,7 @@ class PolicyBuilder
             }
             else if(field.charAt(0) != '!')
             {
-                if(Utils.linearSearch(includedFields, field) == -1)
+                if(grant.Utils.linearSearch(includedFields, field) == -1)
                 {
                     includedFields.push(field);
                     finalFields += field + ",";

@@ -19,7 +19,6 @@ Currently the library works with PHP and MYSQL target, in future release it will
 * fine-grained access control to specific records of a table by applying conditions 
 * fine-grained access control to specific fields of a table by applying filters
 * support inheritance of roles
-* ability to assign more than one role to the users
 * ability to assign more than one policy on the same resource for the same role
 * ability to add limits to policy e.g. how many times to read a resource
 * library automatically checks for JSON data validity and warns of any errors

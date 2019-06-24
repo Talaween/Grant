@@ -63,6 +63,10 @@ class Grant
             }
         }
 
+        //we could not find the role 
+        if(_thisRole == null)
+            return new Permission(false, role, resourceName, null, "role was not found");
+
         //if the role inherits from another role find it
         if(_thisRole.inherits != null && _thisRole.inherits != "")
         {
@@ -74,11 +78,6 @@ class Grant
                     break;
                 }
             }
-        }
-        
-        //if we finish loop but could not find the role
-        if(_thisRole == null){
-            return  new Permission(false, role, resourceName, null);
         }
             
         //find all policies on this resource for this role and its inheritied  
@@ -116,7 +115,7 @@ class Grant
         }
         
         if(_policies.length == 0)
-            return new Permission(false, role, resourceName, null);
+            return new Permission(false, role, resourceName, null, "no " + action + " policy found for this role:" + role);
         
         if(any)
         {            
@@ -130,7 +129,7 @@ class Grant
                 }     
             }
             //if any flag is requested but we did not any policy supports any
-            return new Permission(false, role, resourceName, null);
+            return new Permission(false, role, resourceName, null, "no Any policy was found to " + action + " for this role:" + role);
         }
 
         for(_policy in _policies)

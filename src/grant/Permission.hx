@@ -17,15 +17,16 @@ import grant.Grant.Policy;
     public var resource:String;
 
     @:isVar public var activePolicy(get, set):Policy;
-    @:isVar private var message(get, set):String;
+    @:isVar public var message(get, set):String;
    
-    public function new(granted:Bool, role:String, resource:String, policies:Array<Policy>)
+    public function new(granted:Bool, role:String, resource:String, policies:Array<Policy>, ?message:String)
     {
         
         this.granted = granted;
         this.role = role;
         this.allPolicies = policies;
-
+        this.message = message;
+        
         if(resource != null)
             this.resource = resource;
     }

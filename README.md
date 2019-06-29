@@ -153,7 +153,7 @@ the condition allows Grant to decide whether the user has access to a specific r
 
 there are few simple rules how to write your conditions to ensure that Grant can get the correct answer for you:
 
-if you are checking any values that is on User or the actual resource object than you should use the following syntax:
+if you are checking any values that is on User or the actual resource object then you should use the following syntax:
 
 e.g. check if the user is the actual author of the article
 
@@ -166,7 +166,7 @@ note that we have used the word  "user" to refer to the User obejct and the actu
 
 if you are checking values from any other tables, then you have to use the table name as it is appears in the database, remeber user and resource values can be used with table names in conditons but they always need to be on the left side of the condition 
 
-e.g. check if the user can access an picture which only allowed for users who were tagged in:
+e.g. check if the user can access a picture which only allowed for users who were tagged in it:
 
 ```js
 ....
@@ -180,11 +180,11 @@ assuming the user with Id 7 trying to access the picture with Id 145, the follow
 "SELECT count(*) FROM tags WHERE imageId = 145 AND userId=7"
 ```
 
-in this example there should be a table called tags in the database with the fields supplied.
+in this example there should be a table called tags in the database which has fields imageId and userId.
 
-you can chain consitions using "&" and "|" operators. currently using paranthesis "(" ")" to group conditions does not wprk.
+you can chain consitions using "&" and "|" operators. currently using paranthesis "(" ")" to group conditions does not work.
 
-Grant throws exception if there is an syntax error in any condition when building the policy
+When building the policy; Grant throws exception if there is an syntax error in any condition. 
 
 the same apply to the conditions set for the Limit object, however here you set the condition to count the limit, which will always require connecting to the database:
 

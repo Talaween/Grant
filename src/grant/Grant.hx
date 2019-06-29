@@ -9,6 +9,7 @@ package grant;
  */
 
 import sys.db.Connection;
+import sys.db.ResultSet;
 import grant.*;
 
 typedef Condition = {resource1:String, field1:String, operator:String, resource2:String, field2:String}; 
@@ -150,7 +151,7 @@ class Grant
         }
         
         if(user.role == null)
-            throw ('user object has no role property');
+           return null;
         
         if(user.role != permission.role)
             return null;
@@ -202,8 +203,11 @@ class Grant
         }
     }
 
-    private function runConditions(user:Dynamic, permission:Permission, resource:Dynamic, ?checkLimit:Bool):Int
+    //this function needs revisions, having count (*) of resource.field = user.field doesn't 
+    //mean we can access the current record. we need to explicitly include the current record
+    private function runConditions(user:Dynamic, permission:Permission, resource:Dynamic, ?checkingLimit:Bool):Int
     {
+        
         //TODO currently we are ignoring grouping conditions with ( )
         var finalEval = -1;
         var sql = "";
@@ -211,16 +215,17 @@ class Grant
 
         for(cond in permission.activePolicy.conditions.list)
         {
+            
             if( cond.resource1.toLowerCase() == 'user'  && cond.resource2 == permission.resource )
             {
-                if(checkLimit)
+                if(checkingLimit)
                 {
                     var resourcePart = Reflect.field(resource, cond.field2);
                     
                     if(resourcePart == null)
                         throw "record expression is wrong, " + cond.resource2 + " is not part of " + permission.resource + " class";
 
-                    var sql = "SELECT count(*) FROM " + cond.resource1 + " WHERE " + cond.field1 + " = " + resourcePart;
+                    var sql = "SELECT count(*) FROM User WHERE " + cond.field1 + " = " + resourcePart;
 
                 }
                 else if(cond.field1 != '' && cond.field2 != '')
@@ -239,8 +244,9 @@ class Grant
             }
             else if( cond.resource2.toLowerCase() == 'user'  && cond.resource1 == permission.resource )
             {
-                if(checkLimit)
+                if(checkingLimit)
                 {
+                    trace("3");
                     var userPart = Reflect.field(user, cond.field2);
                     
                     if(userPart == null)
@@ -251,6 +257,7 @@ class Grant
                 }
                 else if(cond.field1 != '' && cond.field2 != '')
                 {
+                    trace("4");
                     var part1 = Reflect.field(user, cond.field2);
                     var part2 = Reflect.field(resource, cond.field1);
                     
@@ -327,6 +334,8 @@ class Grant
             finalEval = 0;
         }
 
+        trace("final value:" + sql);
+
         return finalEval;
        
     }
@@ -354,19 +363,27 @@ class Grant
 
         return allow;
     }
-    private function connectDB(sql:String):Int
+
+    private function executeQuery(sql:String):Int
     {
         if(connection == null)
             throw "no connection to db is provided.";
         
+        var records:ResultSet;
+
         sql = connection.escape(sql);
 
-        var results = connection.request(sql);
-
-        if(results == null || results.results() == null)
+        try
+        {
+            records = connection.request(sql);
+        }
+        catch(err:String){
+            return 0;
+        }
+        if(records == null || records.results() == null)
             return 0;
 
-        return results.results().length;
+        return records.results().length;
     }
 
     public function setConnection(connection:Connection)

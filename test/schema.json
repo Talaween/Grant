@@ -6,7 +6,7 @@
 		"inherits":"guest", 
 		"grant":[
 					{
-						"resource":"article", 
+						"resource":"Article", 
 						"policies":
 						[
 							{
@@ -20,7 +20,7 @@
 							}, 
 							{
 								"action" : "read",
-								"records": "article.authorId=user.id",
+								"records": "any",
 								"fields" : "*",
 								"limit" : {
 									"amount": -1,
@@ -28,17 +28,8 @@
 								}
 							},
 							{
-								"action" : "read",
-								"records": "article.authorId!=user.id",
-								"fields" : "title,authorId, body, publishedDate",
-								"limit" : {
-									"amount": -1,
-									"rule" :""
-								}
-							},
-							{
 								"action" : "update",
-								"records": "article.authorId=user.id",
+								"records": "$resource.authorId=$user.id",
 								"fields" : "*",
 								"limit" : {
 									"amount": -1,
@@ -47,7 +38,7 @@
 							},
 							{
 								"action" : "delete",
-								"records": "article.authorId=user.id",
+								"records": "${resource.authorId}=${user.id}",
 								"fields" : "*",
 								"limit" : {
 									"amount": -1,

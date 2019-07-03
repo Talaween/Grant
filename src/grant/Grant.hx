@@ -153,8 +153,7 @@ class Grant
             {
                 if(_policy.records.toLowerCase() == "any")
                 {
-                    var p =  new Permission(true, role, resourceName, _policies);
-                    p.activePolicy = _policy;
+                    var p =  new Permission(true, role, resourceName, _policy);
                     return p;
                 }     
             }
@@ -166,7 +165,7 @@ class Grant
             for(_policy in _policies)
             {
                 if(_policy.limit.amount != 0)
-                    return new Permission(true, role, resourceName, _policies);
+                    return new Permission(true, role, resourceName, _policy);
             }
         }
 
@@ -175,7 +174,7 @@ class Grant
 
     public function access(user:Dynamic, permission:Permission, resource:Dynamic):Dynamic
     {  
-        if(permission == null || permission.allPolicies == null || user == null)
+        if(permission == null || permission.policy == null || user == null)
         {
              return null;
         }
@@ -185,28 +184,14 @@ class Grant
         
         var allow = false;
 
-        if(permission.activePolicy == null)
-        {
-            //try all policies until we find a policy allow access to the record
-            for(policy in permission.allPolicies)
-            {
-                allow = checkRecord(user, policy, resource);
-                if(allow)
-                {
-                    //we found a policy that allow access to the record
-                    permission.activePolicy = policy;
-                    break;
-                }
-            }
-        }
-        else
-            allow = checkRecord(user, permission.activePolicy, resource);
+        allow = checkRecord(user, permission.policy, resource);
         
         if(allow)
         {
-             allow = checkLimit (user, permission, resource);
+             allow = checkLimit (user, permission.policy.limit, resource);
              if(allow)
              {
+                 permission.policy.fields = checkFields(permission.policy.fields);
                  return permission.filter(user, resource);
              }
         }
@@ -232,10 +217,9 @@ class Grant
 
     //this function needs revisions, having count (*) of resource.field = user.field doesn't 
     //mean we can access the current record. we need to explicitly include the current record
-    private function runCondition(user:Dynamic, condition:String, resource:Dynamic, ?checkingLimit:Bool):Int
+    private function runCondition(user:Dynamic, condition:String, resource:Dynamic):Int
     {
         
-        //TODO currently we are ignoring grouping conditions with ( )
         var finalEval = -1;
         var sql = "";
         var counter = 0;
@@ -348,23 +332,23 @@ class Grant
         return field;
     }
      
-    private function checkLimit(user:Dynamic, permission:Permission, resource:Dynamic):Bool
+    private function checkLimit(user:Dynamic, limit:Limit, resource:Dynamic):Bool
     {
         var allow = false;
-        if(permission.activePolicy.limit.amount == -1)
+        if(limit == null || limit.amount == null || limit.amount == -1)
         {
             //we do not care about limit
             allow = true;
         }
-        else if(permission.activePolicy.limit.amount > 0)
+        else if(limit.amount > 0)
         {
             if(connection == null)
-                throw "No connection to db provided, Grant needs to check create action limit";
+                throw "No connection to db provided, Grant needs to check action limit";
             
-            return (runCondition(user, permission.activePolicy.limit.rule, resource) > 0 ? true: false);
+            return (runCondition(user, limit.rule, resource) > 0 ? true: false);
 
         } 
-        else if(permission.activePolicy.limit.amount == 0)
+        else if(limit.amount == 0)
         {
             allow = false;
         }   

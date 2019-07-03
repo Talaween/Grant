@@ -11,38 +11,28 @@ import grant.Grant.Policy;
 
      //read only properties 
     public var granted(default, null):Bool;
-    public var allPolicies(default, null):Array<Policy>;
 
     public var role:String;
     public var resource:String;
 
-    @:isVar public var activePolicy(get, set):Policy;
+    @:isVar public var policy(default, null):Policy;
     @:isVar public var message(get, set):String;
    
-    public function new(granted:Bool, role:String, resource:String, policies:Array<Policy>, ?message:String)
+    public function new(granted:Bool, role:String, resource:String, policy:Policy, ?message:String)
     {
         
         this.granted = granted;
         this.role = role;
-        this.allPolicies = policies;
+        this.policy = policy;
         this.message = message;
         
         if(resource != null)
             this.resource = resource;
     }
     
-    function get_activePolicy(){
+    function get_policy(){
 
-        if(activePolicy == null)
-            if(allPolicies != null && allPolicies.length > 0)
-                activePolicy = allPolicies[0];
-        
-        return activePolicy;
-    }
-
-    function set_activePolicy(policy:Policy){
-        this.activePolicy = policy;
-        return activePolicy;
+        return policy;
     }
     
     function get_message(){
@@ -54,10 +44,10 @@ import grant.Grant.Policy;
     
     public function filter(user:Dynamic, resource:Dynamic):Dynamic
     {
-        if(activePolicy == null)
+        if(this.policy == null)
             return null;
         
-        var fields = activePolicy.fields.split(",");
+        var fields = this.policy.fields.split(",");
         var field:String;
 
         var  len = fields.length;
@@ -96,7 +86,7 @@ import grant.Grant.Policy;
                             //as subobject in order to prevent infinite recursions
                             if(subs[1] != this.resource)
                             {
-                                var subPermission = grant.mayAccess(this.role, this.activePolicy.action, subs[1]);
+                                var subPermission = grant.mayAccess(this.role, this.policy.action, subs[1]);
 
                                 trace("subobject permission is:" + subPermission.granted);
                                 if(subPermission.granted == true)
@@ -123,10 +113,10 @@ import grant.Grant.Policy;
 
     public function getFields():Array<String>
     {
-        if(activePolicy == null)
+        if(this.policy == null)
             return null;
 
-        var fields = activePolicy.fields.split(",");
+        var fields = this.policy.fields.split(",");
 
         var len = fields.length;
 

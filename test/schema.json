@@ -29,7 +29,7 @@
 							},
 							{
 								"action" : "update",
-								"records": "$resource.authorId=$user.id",
+								"records": "resource.authorId=user.id",
 								"fields" : "*",
 								"limit" : {
 									"amount": -1,
@@ -38,7 +38,7 @@
 							},
 							{
 								"action" : "delete",
-								"records": "${resource.authorId}=${user.id}",
+								"records": "resource.authorId=user.id",
 								"fields" : "*",
 								"limit" : {
 									"amount": -1,

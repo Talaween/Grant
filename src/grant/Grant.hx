@@ -12,10 +12,8 @@ import sys.db.Connection;
 import sys.db.ResultSet;
 import grant.*;
 
-typedef Condition = {resource1:String, field1:String, operator:String, resource2:String, field2:String}; 
-typedef Conditions = {list:Array<Condition>, operators:Array<String>};
-typedef Limit = {amount:Int, rule:String, ?conditions:Conditions};
-typedef Policy = {action:String, records:String, fields:String, limit:Limit, ?conditions:Conditions};   
+typedef Limit = {amount:Int, rule:String};
+typedef Policy = {action:String, records:String, fields:String, limit:Limit};   
 typedef Resource = {resource:String, policies:Array<Policy>};
 typedef Role = {role:String, ?inherits:String, grant:Array<Resource>};  
 typedef Schema = {accesscontrol:Array<Role>};
@@ -39,22 +37,52 @@ class Grant
 
     }
     
-    public function buildPolicy(schema:String)
+    public static function fromJson(jsonData:String):Schema
     {
-        this.schema = PolicyBuilder.build(schema);
+        var schema:Schema;
+        try
+        {
+            schema = haxe.Json.parse(jsonData);
+        }
+        catch(ex:String)
+        {
+            throw "Invalid Json format";
+        }
+        return schema;
     }
-    
+
+    public function addRole(obj:Role)
+    {
+        schema.accesscontrol.push(obj);
+    }
+    public function assignToRole(roleName:String, resource:Resource):Bool
+    {
+        var len = schema.accesscontrol.length;
+
+        for(i in 0...len)
+        {
+            if(schema.accesscontrol[i].role == roleName)
+            {
+                schema.accesscontrol[i].grant.push(resource);
+                return true;
+            }  
+        }
+
+        return false;
+    }
     public function mayAccess(role:String, action:String, resourceName:String, any:Bool = false):Permission
     {
 
-        if(schema == null || schema.accesscontrol == null){
+        if(schema == null || schema.accesscontrol == null)
+        {
             return new Permission(false, role, resourceName, null);
         }
         
         //find the role in the schema
         var _thisRole:Role = null;
         var _inherited:Role = null;
-
+        
+        //find the desired role in the schema
         for(_r in schema.accesscontrol)
         {
             if(_r.role == role)
@@ -64,7 +92,7 @@ class Grant
             }
         }
 
-        //we could not find the role 
+        //if we could not find the role 
         if(_thisRole == null)
             return new Permission(false, role, resourceName, null, "role was not found");
 
@@ -81,10 +109,10 @@ class Grant
             }
         }
             
-        //find all policies on this resource for this role and its inheritied  
+        //find all policies on this resource for this role and its inherited ones  
         var _policies = new Array<Policy>();
         
-        //priority to add new policies before the ones which are inherited as they extend the inherited role
+        //priority is for the extended policies before the inherited 
         for(_res in _thisRole.grant)
         {
             if(_res.resource == resourceName)
@@ -118,6 +146,7 @@ class Grant
         if(_policies.length == 0)
             return new Permission(false, role, resourceName, null, "no " + action + " policy found for this role:" + role);
         
+        //are we checking for a policy that allow access to "any" record
         if(any)
         {            
             for(_policy in _policies)
@@ -129,16 +158,18 @@ class Grant
                     return p;
                 }     
             }
-            //if any flag is requested but we did not any policy supports any
+            //if any flag is requested but we did not find any policy that supports "any"
             return new Permission(false, role, resourceName, null, "no Any policy was found to " + action + " for this role:" + role);
         }
-
-        for(_policy in _policies)
+        else
         {
-            if(_policy.limit.amount != 0)
-                return new Permission(true, role, resourceName, _policies);
+            for(_policy in _policies)
+            {
+                if(_policy.limit.amount != 0)
+                    return new Permission(true, role, resourceName, _policies);
+            }
         }
-        
+
         return new Permission(false, role, resourceName, null);
     }
 
@@ -146,16 +177,12 @@ class Grant
     {  
         if(permission == null || permission.allPolicies == null || user == null)
         {
-            trace(permission.granted);
              return null;
         }
         
-        if(user.role == null)
+        if(user.role == null || permission.role == null || user.role != permission.role)
            return null;
         
-        if(user.role != permission.role)
-            return null;
-
         var allow = false;
 
         if(permission.activePolicy == null)
@@ -163,17 +190,17 @@ class Grant
             //try all policies until we find a policy allow access to the record
             for(policy in permission.allPolicies)
             {
-                permission.activePolicy = policy;
-                allow = checkRecord(user, permission, resource);
+                allow = checkRecord(user, policy, resource);
                 if(allow)
                 {
                     //we found a policy that allow access to the record
+                    permission.activePolicy = policy;
                     break;
                 }
             }
         }
         else
-            allow = checkRecord(user, permission, resource);
+            allow = checkRecord(user, permission.activePolicy, resource);
         
         if(allow)
         {
@@ -187,157 +214,138 @@ class Grant
         return null;
     }
 
-    private function checkRecord(user:Dynamic, permission:Permission, resource:Dynamic):Bool
+    private function checkRecord(user:Dynamic, policy:Policy, resource:Dynamic):Bool
     {
-        if(permission.activePolicy.records == null || permission.activePolicy.records.toLowerCase() == "none")
+        if(policy.records == null || policy.records == "" || policy.records.toLowerCase() == "none")
         {
             return false;
         }  
-        else if(permission.activePolicy.records.toLowerCase() == "any")
+        else if(policy.records.toLowerCase() == "any")
         {
             return true;
         }
         else 
         {            
-            return (runConditions(user, permission, resource) > 0 ? true : false);
+            return (runCondition(user, policy.records, resource) > 0 ? true : false);
         }
     }
 
     //this function needs revisions, having count (*) of resource.field = user.field doesn't 
     //mean we can access the current record. we need to explicitly include the current record
-    private function runConditions(user:Dynamic, permission:Permission, resource:Dynamic, ?checkingLimit:Bool):Int
+    private function runCondition(user:Dynamic, condition:String, resource:Dynamic, ?checkingLimit:Bool):Int
     {
         
         //TODO currently we are ignoring grouping conditions with ( )
         var finalEval = -1;
         var sql = "";
         var counter = 0;
+ 
+        //its eithet a select statement or direct values
+        condition = condition.toLowerCase();
 
-        for(cond in permission.activePolicy.conditions.list)
+        if(condition.indexOf("select") == 0)
         {
+            //we need to embed user and resource values inside the query
             
-            if( cond.resource1.toLowerCase() == 'user'  && cond.resource2 == permission.resource )
+            var userField = extractFieldName(condition, 'user');
+            var resourceField = extractFieldName(condition, 'resource');
+
+            if(userField != '')
             {
-                if(checkingLimit)
-                {
-                    var resourcePart = Reflect.field(resource, cond.field2);
-                    
-                    if(resourcePart == null)
-                        throw "record expression is wrong, " + cond.resource2 + " is not part of " + permission.resource + " class";
+                var userValue = Reflect.field(user, userField);
 
-                    var sql = "SELECT count(*) FROM User WHERE " + cond.field1 + " = " + resourcePart;
-
-                }
-                else if(cond.field1 != '' && cond.field2 != '')
-                {
-                    var part1 = Reflect.field(user, cond.field1);
-                    var part2 = Reflect.field(resource, cond.field2);
-                    
-                    if(part1 == null)
-                        throw "record expression is wrong, " + cond.field1 + " is not part of user class";
-
-                    if(part2 == null)
-                        throw "record expression is wrong, " + cond.field2 + " is not part of " + permission.resource + " class";
-                    
-                    finalEval = (part1 == part2 ? 1:0);
-                }
+                condition = StringTools.replace(condition, 'user.' + userField, userValue);
             }
-            else if( cond.resource2.toLowerCase() == 'user'  && cond.resource1 == permission.resource )
+
+            if(resourceField != '')
             {
-                if(checkingLimit)
-                {
-                    trace("3");
-                    var userPart = Reflect.field(user, cond.field2);
-                    
-                    if(userPart == null)
-                        throw "record expression is wrong, " + cond.field2 + " is not part of user class";
-
-                    var sql = "SELECT count(*) FROM " + cond.resource1 + " WHERE " + cond.field1 + " = " + userPart;
-
-                }
-                else if(cond.field1 != '' && cond.field2 != '')
-                {
-                    trace("4");
-                    var part1 = Reflect.field(user, cond.field2);
-                    var part2 = Reflect.field(resource, cond.field1);
-                    
-                    if(part1 == null)
-                        throw "record expression is wrong, " + cond.field2 + " is not part of user class";
-
-                    if(part2 == null)
-                        throw "record expression is wrong, " + cond.field1 + " is not part of " + permission.resource + " class";
-                    
-                    finalEval = (part1 == part2 ? 1:0);
-                }
+                var resourceValue = Reflect.field(resource, resourceField);
+                condition = StringTools.replace(condition, 'resource.' + resourceField , resourceValue);
             }
-            else if(cond.resource2.toLowerCase() == 'user' && cond.resource1 != permission.resource)
+
+            return executeQuery(condition);
+        }
+        else  if(condition.indexOf("resource") == 0)
+        {
+            condition = Utils.stripSpaces(condition);
+
+            var reg = ~/[><]{0,1}=/;
+
+            var operands = reg.split(condition);
+
+            if(operands.length == 2)
             {
-                var part2 = Reflect.field(user, cond.field2);
+                var resourceParts = operands[0].split('.');
 
-                 if(part2 == null)
-                    throw "record expression is wrong, " + cond.field2 + " is not part of user class";
+                if(resourceParts.length != 2)
+                    throw "wrong expression, resource does not have a field attached to it";
+                
+                var userParts = operands[1].split('.');
 
-                if(sql == "")
-                    sql = "SELECT count(*) FROM " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
+                if(userParts.length != 2)
+                    throw "wrong expression, user does not have a field attached to it";
+
+                if(userParts[0] != 'user')
+                    throw "user object was not detected in the records expression";
+
+                var resourcePart = Reflect.field(resource, resourceParts[1]);
+
+                if(resourcePart == null)
+                    return 0;
+
+                var userPart = Reflect.field(user, userParts[1]);
+
+                if(userPart == null)
+                    return 0;
+
+                if(condition.indexOf(">=") != -1)
+                {
+                    return (resourcePart >= userPart ? 1:0);
+                }
+                else if(condition.indexOf("<=") != -1)
+                {
+                        return (resourcePart <= userPart ? 1:0);
+                }
+                else if(condition.indexOf(">") != -1)
+                {
+                        return (resourcePart > userPart ? 1:0);
+                }
+                else if(condition.indexOf("<") != -1)
+                {
+                        return (resourcePart < userPart ? 1:0);
+                }
+                else if(condition.indexOf("=") != -1)
+                {
+                    return (resourcePart == userPart ? 1:0);
+                }
                 else
-                {
-                    switch (cond.operator)
-                    {
-                        case "&": sql += " AND " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
-                        case "":  sql += " OR " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
-                    }
-                }
-
-            }
-            else if(cond.resource2 == permission.resource  && cond.resource1.toLowerCase() != 'user')
-            {
-                var part2 = Reflect.field(resource, cond.field2);
-
-                 if(part2 == null)
-                    throw "record expression is wrong, " + cond.field2 + " is not part of " + permission.resource;
-
-                if(sql == "")
-                    sql = "SELECT count(*) FROM " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
-                else
-                {
-                    switch (cond.operator)
-                    {
-                        case "&": sql += " AND " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
-                        case "":  sql += " OR " + cond.resource1 + " WHERE " + cond.field1 + " = " + part2;
-                    }
-                }
+                    throw "error in records expression, wrong operator used in expression";
             }
             else
             {
-                throw "wrong expression in the condition";
+                throw "error in records expression, no 2 operands were detected";
             }
 
-            counter++;
-           
-        }//end for
-
-        if(finalEval != -1 && sql != "")
-        {
-            //some condition used resourceUser values and another needs a connection to DB 
-            //TODO: how to evaluate this case
-           
-
         }
-        else if(finalEval == -1 && sql != "" )
+        
+        return 0;
+    }
+
+    private function extractFieldName(statement:String, obj:String):String
+    {
+        var len1 = statement.indexOf(obj + '.') + (obj + '.').length;
+        var len2 = statement.length;
+        var field = '';
+
+        for(i in len1...len2)
         {
-            //only connect sql is required
-            finalEval = connectDB(sql);
-        }
-        else if(finalEval == -1 && sql == "")
-        {
-            //nothing has been used
-            finalEval = 0;
+            if(StringTools.isSpace(statement, i))
+                break;
+            else
+                field += statement.charAt(i);
         }
 
-        trace("final value:" + sql);
-
-        return finalEval;
-       
+        return field;
     }
      
     private function checkLimit(user:Dynamic, permission:Permission, resource:Dynamic):Bool
@@ -353,7 +361,7 @@ class Grant
             if(connection == null)
                 throw "No connection to db provided, Grant needs to check create action limit";
             
-            return (runConditions(user, permission, resource) > 0 ? true: false);
+            return (runCondition(user, permission.activePolicy.limit.rule, resource) > 0 ? true: false);
 
         } 
         else if(permission.activePolicy.limit.amount == 0)
@@ -385,6 +393,47 @@ class Grant
 
         return records.results().length;
     }
+
+    /* check the order of the fields that are allowed or prohibited to be accessed
+    *  make sure the * ioperator is put at first and no duplication is in there
+    *  and the excluded fields put after the allowed ones 
+    * */
+    private static function checkFields(fields:String):String
+    {
+
+        fields = Utils.stripSpaces(fields);
+
+        var fieldsArray = fields.split(",");
+        var includedFields = new Array<String>();
+        var excludedFields = new Array<String>();
+        var finalFields = "";
+
+        for(field in fieldsArray)
+        {
+            if(field == "*")
+            {
+                finalFields = "*, " + finalFields;
+            }
+            else if(field.charAt(0) != '!')
+            {
+                if(grant.Utils.linearSearch(includedFields, field) == -1)
+                {
+                    includedFields.push(field);
+                    finalFields += field + ",";
+                }
+            }
+            else 
+            {
+                if(Utils.linearSearch(excludedFields, field) == -1)
+                {
+                    excludedFields.push(field);
+                    finalFields += field + ",";
+                }
+            }
+        }
+        
+        return finalFields; 
+    } 
 
     public function setConnection(connection:Connection)
     {

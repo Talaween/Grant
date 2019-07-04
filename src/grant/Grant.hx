@@ -37,7 +37,7 @@ class Grant
 
     }
     
-    public static function fromJson(jsonData:String):Schema
+    public function fromJson(jsonData:String):Schema
     {
         var schema:Schema;
         try
@@ -48,6 +48,9 @@ class Grant
         {
             throw "Invalid Json format";
         }
+       
+        this.schema = schema;
+
         return schema;
     }
 
@@ -75,7 +78,7 @@ class Grant
 
         if(schema == null || schema.accesscontrol == null)
         {
-            return new Permission(false, role, resourceName, null);
+            return new Permission(false, role, resourceName, null, "schema or access control object is null");
         }
         
         //find the role in the schema
@@ -158,7 +161,7 @@ class Grant
                 }     
             }
             //if any flag is requested but we did not find any policy that supports "any"
-            return new Permission(false, role, resourceName, null, "no Any policy was found to " + action + " for this role:" + role);
+            return new Permission(false, role, resourceName, null, "no 'Any' policy was found to " + action + " for this role:" + role);
         }
         else
         {
@@ -169,7 +172,7 @@ class Grant
             }
         }
 
-        return new Permission(false, role, resourceName, null);
+        return new Permission(false, role, resourceName, null, "no policy found that has a limit amount more than 0. ");
     }
 
     public function access(user:Dynamic, permission:Permission, resource:Dynamic):Dynamic
@@ -180,7 +183,10 @@ class Grant
         }
         
         if(user.role == null || permission.role == null || user.role != permission.role)
-           return null;
+        {
+            return null;
+        }
+           
         
         var allow = false;
 
@@ -195,7 +201,7 @@ class Grant
                  return permission.filter(user, resource);
              }
         }
-           
+
         return null;
     }
 
@@ -210,7 +216,7 @@ class Grant
             return true;
         }
         else 
-        {            
+        {    
             return (runCondition(user, policy.records, resource) > 0 ? true : false);
         }
     }
@@ -223,9 +229,6 @@ class Grant
         var finalEval = -1;
         var sql = "";
         var counter = 0;
- 
-        //its eithet a select statement or direct values
-        condition = condition.toLowerCase();
 
         if(condition.indexOf("select") == 0)
         {
@@ -275,13 +278,18 @@ class Grant
                 var resourcePart = Reflect.field(resource, resourceParts[1]);
 
                 if(resourcePart == null)
-                    return 0;
+                {
+                     return 0;
+                }
+                   
 
                 var userPart = Reflect.field(user, userParts[1]);
 
                 if(userPart == null)
+                {
                     return 0;
-
+                }
+                   
                 if(condition.indexOf(">=") != -1)
                 {
                     return (resourcePart >= userPart ? 1:0);

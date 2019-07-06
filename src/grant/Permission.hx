@@ -11,37 +11,56 @@ import grant.Grant.Policy;
 
      //read only properties 
     public var granted(default, null):Bool;
-
+    public var policy(default, null):Policy;
+    
+    public var message:String;
     public var role:String;
     public var resource:String;
 
-    @:isVar public var policy(default, null):Policy;
-    @:isVar public var message(get, set):String;
-   
-    public function new(granted:Bool, role:String, resource:String, policy:Policy, ?message:String)
+    private var policies:Array<Policy>;
+    private var currentIndex:Int;
+
+    public function new(role:String, resource:String, policies:Array<Policy>, ?message:String)
     {
-        
-        this.granted = granted;
         this.role = role;
-        this.policy = policy;
+        this.policies = policies;
+        this.resource = resource;
         this.message = message;
-        
-        if(resource != null)
-            this.resource = resource;
+
+        currentIndex =  0;
+
+        if(policies != null && policies.length > 0)
+        {
+            this.policy = policies[currentIndex];
+            this.granted = true;
+        } 
+        else
+        {
+            this.granted = false;
+        }
     }
     
+    function get_granted(){
+
+        return this.granted;
+    }
+
     function get_policy(){
 
-        return policy;
+        return this.policy;
     }
     
-    function get_message(){
-        return message;
+    public function nextPolicy():Bool
+    {
+        currentIndex++;
+        if(currentIndex < policies.length)
+        {
+            this.policy = policies[currentIndex];
+            return true;
+        }
+
+        return false;
     }
-    function set_message(message:String){
-        return this.message = message;
-    }
-    
     public function filter(user:Dynamic, resource:Dynamic):Dynamic
     {
         if(this.policy == null)

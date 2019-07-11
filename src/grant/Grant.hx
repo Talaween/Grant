@@ -254,8 +254,6 @@ class Grant
         for(conditionPart in conditions)
         {
             var retVal = evaluateExpression(user, conditionPart, resource);
-            
-            trace(retVal + "=>" + conditionPart);
 
             if(counter == 0)
             {
@@ -306,7 +304,6 @@ class Grant
             if(userField != '')
             {
                 var userValue = Reflect.field(user, userField);
-                trace(condition+ "<>user." + userField + "<>" + userValue);
                 condition = StringTools.replace(condition, 'user.' + userField, userValue);
             }
 

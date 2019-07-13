@@ -232,10 +232,12 @@ class Grant
             switch(condition.charAt(i))
             {
                 case "&":   operators.push("&");
+                            conditionPart = StringTools.trim(conditionPart);
                             conditions.push(conditionPart);
                             conditionPart = "";
 
                 case "|":   operators.push("|");
+                            conditionPart = StringTools.trim(conditionPart);
                             conditions.push(conditionPart);
                             conditionPart = "";
 
@@ -246,6 +248,7 @@ class Grant
         
 
         //push the last condition part
+        conditionPart = StringTools.trim(conditionPart);
         conditions.push(conditionPart);
 
         var finalValue = false;
@@ -273,50 +276,31 @@ class Grant
         
     }
 
-    private function extractFieldName(statement:String, obj:String):String
-    {
-        var len1 = statement.indexOf(obj + '.') + (obj + '.').length;
-        var len2 = statement.length;
-        var field = '';
-
-        for(i in len1...len2)
-        {
-            if(StringTools.isSpace(statement, i))
-                break;
-            else if(statement.charAt(i) == "\"")
-                continue;
-            else
-                field += statement.charAt(i);
-        }
-
-        return field;
-    }
-    
     private function evaluateExpression(user:Dynamic, condition:String, resource:Dynamic):Int
     {
         if(condition.indexOf("select") == 0 || condition.indexOf("Select") == 0 || condition.indexOf("SELECT") == 0)
         {
-            //we need to embed user and resource values inside the query
+            //we need to embed user and resource values inside the query instead of $user and $resource
             
-            var userField = extractFieldName(condition, 'user');
-            var resourceField = extractFieldName(condition, 'resource');
+            var userField = extractFieldName(condition, "$user");
+            var resourceField = extractFieldName(condition, "$resource");
 
             if(userField != '')
             {
                 var userValue = Reflect.field(user, userField);
-                condition = StringTools.replace(condition, 'user.' + userField, userValue);
+                condition = StringTools.replace(condition, "$user." + userField, userValue);
             }
 
             if(resourceField != '')
             {
                 var resourceValue = Reflect.field(resource, resourceField);
-                condition = StringTools.replace(condition, 'resource.' + resourceField , resourceValue);
+                condition = StringTools.replace(condition, "$resource." + resourceField , resourceValue);
             }
 
             return executeQuery(condition);
         }
         //case we use (resource.fieldName = user.fieldName) or (resource.fieldName = someValue)
-        else  if(condition.indexOf("resource") == 0 || condition.indexOf("user") == 0)
+        else  if(condition.indexOf("$resource") == 0 || condition.indexOf("$user") == 0)
         {
             condition = Utils.stripSpaces(condition);
 
@@ -334,7 +318,7 @@ class Grant
                 if(firstParts.length != 2)
                     throw "wrong expression, left side of expression does not have a field attached to it";
                 
-                if(firstParts[0] == "resource")
+                if(firstParts[0] == "$resource")
                     firstPartValue = Reflect.field(resource, firstParts[1]);
                 else
                     firstPartValue = Reflect.field(user, firstParts[1]);
@@ -345,14 +329,14 @@ class Grant
                 }
 
                 //case right operand is user.fieldName or resource.fieldName
-                if(operands[1].indexOf("user") == 0 || operands[1].indexOf("resource") == 0  )
+                if(operands[1].indexOf("$user") == 0 || operands[1].indexOf("$resource") == 0  )
                 {
                     var secondParts = operands[1].split('.');
 
                     if(secondParts.length != 2)
                         throw "wrong expression, left side user or resource does not have a field attached to it";
 
-                    if(secondParts[0] == "resource")
+                    if(secondParts[0] == "$resource")
                         secondPartValue = Reflect.field(resource, secondParts[1]);
                     else
                         secondPartValue = Reflect.field(user, secondParts[1]);
@@ -427,6 +411,26 @@ class Grant
         return 0;
         
     }
+
+    private function extractFieldName(statement:String, obj:String):String
+    {
+        var len1 = statement.indexOf(obj + '.') + (obj + '.').length;
+        var len2 = statement.length;
+        var field = '';
+
+        for(i in len1...len2)
+        {
+            if(StringTools.isSpace(statement, i))
+                break;
+            else if(statement.charAt(i) == "\"")
+                continue;
+            else
+                field += statement.charAt(i);
+        }
+
+        return field;
+    }
+
     private function checkLimit(user:Dynamic, limit:Limit, resource:Dynamic):Bool
     {
         var allow = false;

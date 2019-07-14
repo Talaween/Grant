@@ -49,6 +49,12 @@ in case your policies needs connection to the database you have to provide the c
 grant.setConnection(connection);
 ```
 
+and you can remove the connection later when needed:
+
+```js
+grant.removeConnection();
+```
+
 build the policy stored in json file
 
 ```js
@@ -182,7 +188,26 @@ e.g. check if the user is the actual author of the article
 ```
 note that we have used the word  "user" to refer to the actual User obejct currently trying to access the resource, and the resource word to refer the current resource object.
 
-if you are checking values from any other tables or objects, then you have to use an SQL select statement 
+you can also add static values:
+
+```js
+....
+"records" : "$resource.price >= 20/i",
+....
+```
+
+note that you have to add a tailing flag to indicate the type of the value:
+
+/i: for integer e.g. 20/i
+/f: for float e.g. 13.5/f
+/b: for boolean e.g. true/b
+/d: for date e.g. 2019-07-14/d
+
+otherwise the value will be treated as a string
+
+the comparison operator can be one of the following (>, >=, <, <=, ==, =, !=), where = or == will be the same.
+
+if you are checking values from any other tables or objects, then you have to use a SQL select statement 
 
 e.g. check if the user can access a picture which only allowed for users who were tagged in it:
 
@@ -193,7 +218,7 @@ e.g. check if the user can access a picture which only allowed for users who wer
 ```
 if the length of result for this SQL is more than 1, it will be evaluated as true otherwise false.
 
-you can combine both examples of conditions using either |, & operators:
+you can combine both examples of conditions using either | & operators:
 
 ```js
 ....
@@ -201,7 +226,7 @@ you can combine both examples of conditions using either |, & operators:
 ....
 ```
 
-for Limit object we provide a condition in the "rule" property, you should use an sql SELECT statement that counts the number of times the user access the object, for example allowing a user to only create maximum 5 articles :
+for Limit object we provide a condition in the "rule" property, you should use a SQL SELECT statement that counts the number of times the user access the object, for example allowing a user to only create maximum 5 articles :
 
 ```js
 ....
@@ -210,6 +235,18 @@ for Limit object we provide a condition in the "rule" property, you should use a
 ....
 ```
 in this example if the SQL statement returns a result length less than 5 the user will be able to access and perform the action on the resource.
+
+
+### Building the Policy in the code
+
+if you wish you can build the policy inside the code rather than importing it from a json file.
+
+you can use the following functions to build your schema:
+
+* Grant.setSchma(schema:Schema)
+* Grant.addRole(role:Role)
+* Grant.assignToRole(roleName:String, resource:Resource)
+
 
 ### Built With
 

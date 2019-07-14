@@ -1,11 +1,15 @@
 package grant;
 
 import grant.Grant.Policy;
+import grant.Grant;
+
 /**
  * ...
  * @author Mahmoud Awad
  */
 
+@:final
+@:allow(grant.Grant)
  class Permission 
  {
 
@@ -20,7 +24,8 @@ import grant.Grant.Policy;
     private var policies:Array<Policy>;
     private var currentIndex:Int;
 
-    public function new(role:String, resource:String, policies:Array<Policy>, ?message:String)
+ 
+    private function new(role:String, resource:String, policies:Array<Policy>, ?message:String)
     {
         this.role = role;
         this.policies = policies;

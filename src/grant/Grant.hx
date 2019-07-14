@@ -246,7 +246,6 @@ class Grant
 
         }
         
-
         //push the last condition part
         conditionPart = StringTools.trim(conditionPart);
         conditions.push(conditionPart);

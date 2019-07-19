@@ -42,17 +42,21 @@ get grant instance
 ```js
 var grant = Grant.getInstance();
 ```
+Get instance has the following signature:
 
+```js
+public static function getInstance():Grant
+```
 in case your policies needs connection to the database you have to provide the connection object 
 
 ```js
-grant.setConnection(connection);
+ public function setConnection(connection:sys.db.Connection)
 ```
 
 and you can remove the connection later when needed:
 
 ```js
-grant.removeConnection();
+public function removeConnection()
 ```
 
 build the policy stored in json file
@@ -69,10 +73,15 @@ or build policy using an object of type Schema, more details are below
 grant.setSchema(schema);
 
 ```
+where the function fromJson accepts an anonymous structure of type grant.Schema;
 
 then to check if a role may access a resource use for example:
 
 ```js
+
+public function mayAccess(role:String, action:String, resourceName:String):Permission
+
+//an example how to use it in the code
 var permission = grant.mayAccess('guest', 'read', 'article');
 
 ```
@@ -83,6 +92,9 @@ please note further database checks maybe needed to confirm access to the resour
 To access the actual resource or record, you will use the permission object with the user object and the resource object. please note that the user object should have a propery called role, if user does not have a role property then an exception is thrown.
 
 ```js
+public function access(user:Dynamic, permission:Permission, resource:Dynamic):Dynamic
+
+//an example of how to use it in the code
 var accessibleObject = grant.access(user, permission, article);
 
 ```
@@ -90,15 +102,19 @@ var accessibleObject = grant.access(user, permission, article);
 in case you want to know which fields the user can access for the specified action (read, create, update, delete)
 
 ```js
+public function fields():Array<String>
 
-var fields = permsision.getFields();
+//an example how use it in the code
+var fields = permsision.fields();
 
 ```
 
 you can also filter what user can access from the resource without allowing Grant to access DB, in this case you will need to do the actual check for user permission by yourself for example if the user is the owner.
 
 ```js
+public function filter(user:Dynamic, resource:Dynamic):Dynamic
 
+//an example of how to use it in the code
 var accessibleObject = permission.filter(user, article);
 
 ```
@@ -164,6 +180,28 @@ the Limit object has the following structure and fields:
 
 you can specify more than one policy on the same resource for the same role, so that the role can access different records in different manner, the record property of Policy object allows you to decide which rows/records in the table the user can acess. for example an author role will allow the user to read any article and see its title, textBody and publishedDate, and another read policy that is applied to his own created articles where he will be able to see title, textBody, publishedDate and notes.
 
+### Sub Object Permissions
+
+you can control sub-object permission (currently to one level) by Grant.
+
+for example if you have a resource called Comment which also has an article and user object associated with it, you can ask Grant to apply the available policies for these resources that are available for the current user by identifying the sub-object with '^' operator as follow:
+
+```js
+{
+    "action" : "read",
+    "records": "any",
+    "fields" : "commentText, publishedDate, author^User, article^Article",
+    "limit" : {
+        "amount": -1,
+        "rule" :""
+    }
+},
+```
+
+now Grant will look for what User policy is available for the current user and apply it on the author field, and the same for article, if Grant cannot find any policies or the current policy does not allow access the resource then that sub-object will not appear.
+
+if you do not apply the "^" operator no access control policy will be applied to the sub-object and it will returned as it is if the user is allowed access the sub-object in the current policy.
+
 ### Conditions
 
 the conditions is very important part of how Grant works, it allows you to specified how to access a specific record, it is in fact allow you to filter which records/rows of a table a user may access and how. 
@@ -198,10 +236,10 @@ you can also add static values:
 
 note that you have to add a tailing flag to indicate the type of the value:
 
-/i: for integer e.g. 20/i
-/f: for float e.g. 13.5/f
-/b: for boolean e.g. true/b
-/d: for date e.g. 2019-07-14/d
+* /i for integer e.g. 20/i
+* /f for float e.g. 13.5/f
+* /b for boolean e.g. true/b
+* /d for date e.g. 2019-07-14/d
 
 otherwise the value will be treated as a string
 

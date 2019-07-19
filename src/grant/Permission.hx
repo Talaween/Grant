@@ -135,24 +135,24 @@ import grant.Grant;
         }
     }
 
-    public function getFields():Array<String>
+    public function fields():Array<String>
     {
         if(this.policy == null)
             return null;
 
-        var fields = this.policy.fields.split(",");
+        var tmp_fields = this.policy.fields.split(",");
 
-        var len = fields.length;
+        var len = tmp_fields.length;
 
         for(i in 0...len)
         {
-            if(fields[i].indexOf("^") > -1)
+            if(tmp_fields[i].indexOf("^") > -1)
             {
-                fields[i] = fields[i].split("^")[0];
+                tmp_fields[i] = tmp_fields[i].split("^")[0];
             }
         }
 
-        return fields;
+        return tmp_fields;
     }
      
  }

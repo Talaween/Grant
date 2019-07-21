@@ -167,6 +167,9 @@ the Policy object has the following structure and fields:
 * records: the condition(s) that allow the role to access this resource, see below for explanations on conditions
 * limit: is a Limit object to count how many times a role can perform the specified action on the resource
 
+You can apply more than one policy for the same rule on the same resource, with each Policy gives the user a different access to a subset of records, for example one Policy allows user to read all the fields of his own articles, another policy to read a subset of fields for articles he does not own.
+The order how you add policies on the same resource is important, If you have more than one policy on the same resource, Grant always execute the first policy that give the user access to the record.
+
 the Limit object has the following structure and fields:
 
 ```js
@@ -285,6 +288,48 @@ you can use the following functions to build your schema:
 * Grant.addRole(role:Role)
 * Grant.assignToRole(roleName:String, resource:Resource)
 
+### Policies examples
+
+update all fields on own resource:
+
+```js
+{
+    "action" : "update",
+    "records": "$resource.id=$user.id",
+    "fields" : "*",
+    "limit" : {
+        "amount": -1,
+        "rule" :""
+    }
+}
+```
+
+read selected fields on an own resource to be read maximum 5 times:
+
+```js
+{
+    "action" : "read",
+    "records": "$resource.ownerId=$user.id",
+    "fields" : "field1, field2, field3",
+    "limit" : {
+        "amount": 5,
+        "rule" :"SELECT count(*) FROM ResourceTable WHERE ownerId = $user.id"
+    }
+}
+```
+
+create a tag on own articles, where articles are stored in a table called Article:
+
+```js
+{
+    "action":"create", 
+    "records":"SELECT * FROM Article WHERE Article.Id=$resource.articleId AND Article.authorId=$user.id", "fields":"*", 
+    "limit": {
+        "amount":-1, 
+        "rule":"$resource.articleId"
+    }
+};
+```
 
 ### Built With
 

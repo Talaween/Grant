@@ -10,6 +10,7 @@ package grant;
 
 import sys.db.Connection;
 import sys.db.ResultSet;
+import sys.db.Mysql;
 import grant.*;
 
 typedef Limit = {amount:Int, rule:String};
@@ -22,17 +23,20 @@ class Grant
 {
     private static var _instance:Grant;
     private var connection:Connection;
+    private var isConnected:Bool;
     private var schema:Schema;
 
-    public static function getInstance():Grant
+    private var databaseInfo:{user:String,?socket:Null<String>,?port:Null<Int>,pass:String,host:String,database:String};
+
+    public static function getInstance(?params:{user:String,?socket:Null<String>,?port:Null<Int>,pass:String,host:String,database:String}):Grant
     {
         if (_instance == null)
-            _instance = new Grant();
+            _instance = new Grant(params);
 
         return _instance;
     }
     
-    private function new()
+    private function new(?params:{user:String,?socket:Null<String>,?port:Null<Int>,pass:String,host:String,database:String})
     {
 
     }
@@ -456,8 +460,8 @@ class Grant
 
     private function executeQuery(sql:String):Int
     {
-        if(connection == null)
-            throw "no connection to db is provided.";
+        if( connectMysql() == null)
+            throw "no connection to db is established.";
         
         var records:ResultSet;
 
@@ -471,6 +475,8 @@ class Grant
         if(records == null || records.results().length == null)
             return 0;
 
+        disconnectMysql();
+        
         return records.results().length;
     }
 
@@ -515,13 +521,30 @@ class Grant
         return finalFields; 
     } 
 
-    public function setConnection(connection:Connection)
+    public function evaluatePolicy(user:Dynamic, policy:Policy, resource:Dynamic):Bool
     {
-        this.connection = connection;
+        return checkRecord(user, policy, resource);
     }
-    public function removeConnection()
+
+    private function connectMysql():Bool
     {
-        this.connection = null;
+        if(!isConnected)
+        {
+            this.connection = Mysql.connect(databaseInfo);
+
+            isConnected = true;
+        }
+       
+        return isConnected;
     }
+
+    private function disconnectMysql():Bool
+    {
+		this.connection.close();
+		isConnected = false;
+
+        return !isConnected;
+    }
+
     
 }

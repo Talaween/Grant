@@ -45,21 +45,11 @@ var grant = Grant.getInstance();
 Get instance has the following signature:
 
 ```js
-public static function getInstance():Grant
+    public static function getInstance(?params:{user:String,?socket:Null<String>,?port:Null<Int>,pass:String,host:String,database:String}):Grant
 ```
-in case your policies needs connection to the database you have to provide the connection object 
+It takes the required information to connect to the database as optional parameters. if your policies require verification through databas then you can let Grant access the database, more on this below.
 
-```js
- public function setConnection(connection:sys.db.Connection)
-```
-
-and you can remove the connection later when needed:
-
-```js
-public function removeConnection()
-```
-
-build the policy stored in json file
+You can build a policy stored in a json file
 
 ```js
 var textualJsonData = sys.io.File.getContent('/path/to/json/policies/file.json');
@@ -67,7 +57,7 @@ grant.fromJson(textualJsonData);
 
 ```
 
-or build policy using an object of type Schema, more details are below
+or can build policy using an object of type Schema, more details are below
 
 ```js
 grant.setSchema(schema);
@@ -329,6 +319,15 @@ create a tag on own articles, where articles are stored in a table called Articl
         "rule":"$resource.articleId"
     }
 };
+```
+
+### Additional policies
+
+You can let Grant verify a policy that is not part of your schema using 
+
+```js
+public function evaluatePolicy(user:Dynamic, policy:Policy, resource:Dynamic):Bool
+
 ```
 
 ### Built With

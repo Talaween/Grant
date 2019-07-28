@@ -70,7 +70,7 @@ import grant.Grant;
     {
         if(this.policy == null)
             return null;
-        
+               
         var fields = this.policy.fields.split(",");
         var field:String;
 
@@ -84,6 +84,7 @@ import grant.Grant;
             {
                 for(i in 1...len)
                 {
+                    fields[i] = StringTools.trim(fields[i]);
                     field = fields[i].substr(1);
                     Reflect.deleteField(resource, field);
                 }
@@ -92,10 +93,12 @@ import grant.Grant;
         }
         else
         {
-            var resourceCopy = {};
+            var resourceCopy:Dynamic = {};
 
             for(i in 0...len)
             {
+                fields[i] = StringTools.trim(fields[i]);
+
                 if(fields[i].length > 0)
                 {
                     if(fields[i].indexOf("^") > 0)
@@ -112,7 +115,6 @@ import grant.Grant;
                             {
                                 var subPermission = grant.mayAccess(this.role, this.policy.action, subs[1]);
 
-                                trace("subobject permission is:" + subPermission.granted);
                                 if(subPermission.granted == true)
                                 {
                                     var subObjCopy = grant.access(user, subPermission, subObj);
@@ -121,12 +123,13 @@ import grant.Grant;
                             } 
                         }
                     }
-                    else if(fields[i].charAt(0) != "!")
-                        Reflect.setField(resourceCopy, fields[i], Reflect.field(resource, fields[i]));
+                    //else if(fields[i].charAt(0) != "!")
+                      //  Reflect.setField(resourceCopy, fields[i], Reflect.field(resource, fields[i]));
                     else
                     {
-                        field = fields[i].substr(1);
-                        Reflect.deleteField(resourceCopy, field);
+                        //field = fields[i].substr(1);
+                        Reflect.setField(resourceCopy, fields[i], Reflect.field(resource, fields[i]));
+                        
                     }
                 }   
             }

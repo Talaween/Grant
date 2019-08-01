@@ -194,14 +194,25 @@ class Grant
                         permission.policy.fields = checkFields(permission.policy.fields);
                         return permission.filter(user, resource);
                     }
+                    else
+                    {
+                        permission.message += ", limit has been reached.";
+                    }
                 }
+            }
+            else
+            {
+                permission.message += ", user role and permisionm role does not match";
             }
         }
         
         if(permission.nextPolicy() == true)
             return access(user, permission, resource);
         else
+        {
             return null;
+        }
+            
     }
 
     private function checkRecord(user:Dynamic, policy:Policy, resource:Dynamic):Bool
@@ -305,6 +316,7 @@ class Grant
         //case we use (resource.fieldName = user.fieldName) or (resource.fieldName = someValue)
         else  if(condition.indexOf("$resource") == 0 || condition.indexOf("$user") == 0)
         {
+            
             condition = Utils.stripSpaces(condition);
 
             var reg = ~/[><!=]{0,1}=/;
@@ -320,6 +332,7 @@ class Grant
                 
                 if(firstParts.length != 2)
                     throw "wrong expression, left side of expression does not have a field attached to it";
+                
                 
                 if(firstParts[0] == "$resource")
                     firstPartValue = Reflect.field(resource, firstParts[1]);

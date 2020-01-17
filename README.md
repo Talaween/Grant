@@ -256,8 +256,9 @@ you can combine both examples of conditions using either | & operators:
 "records" : "$resource.auhthorId=$user.Id | Select * From tags where tags.userId = $user.id And tags.pictureId = $resource.id",
 ....
 ```
+### Limits
 
-for Limit object we provide a condition in the "rule" property, you should use a SQL SELECT statement that counts the number of times the user access the object, for example allowing a user to only create maximum 5 articles :
+The Limit object provides a condition to count how many time a policy can be valid before it expires, the amount property specifies the maximum number to execute the policy, while in the "rule" property, you should use a SQL SELECT statement that counts the number of times the user role has accessed the object, for example allowing a user to only create maximum 5 articles :
 
 ```js
 ....
@@ -265,7 +266,7 @@ for Limit object we provide a condition in the "rule" property, you should use a
 "rule" : "SELECT count(*) From Articles where Articles.authorId=$user.id"
 ....
 ```
-in this example if the SQL statement returns a result length less than 5 the user will be able to access and perform the action on the resource.
+in this example if the SQL statement returns a result less than 5 the user will be able to access and to perform the action on the resource.
 
 
 ### Building the Policy in the code

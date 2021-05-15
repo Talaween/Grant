@@ -1,7 +1,6 @@
 package grant;
 
 import sys.db.Connection;
-import grant.Grant.Policy;
 import grant.Grant;
 
 /**

@@ -20,7 +20,6 @@ typedef Schema = {accesscontrol:Array<Role>};
 class Grant 
 {
     private static var _instance:Grant;
-    private var isConnected:Bool;
     private var schema:Schema;
 
     public static function getInstance():Grant
@@ -169,7 +168,7 @@ class Grant
                     if(allow)
                     {
                         permission.policy.fields = checkFields(permission.policy.fields);
-                        return permission.filter(user, resource);
+                        return permission.filter(user, resource, connection);
                     }
                     else
                         permission.message += ", limit on the resource has been reached.";

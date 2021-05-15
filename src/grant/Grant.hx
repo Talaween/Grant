@@ -7,10 +7,8 @@ package grant;
  * allow dynamic user roles creation from outide DB
  * 
  */
-
 import sys.db.Connection;
 import sys.db.ResultSet;
-import sys.db.Mysql;
 import grant.*;
 
 typedef Limit = {amount:Int, rule:String};
@@ -22,21 +20,18 @@ typedef Schema = {accesscontrol:Array<Role>};
 class Grant 
 {
     private static var _instance:Grant;
-    private var connection:Connection;
     private var isConnected:Bool;
     private var schema:Schema;
 
-    private var databaseInfo:{user:String,?socket:Null<String>,?port:Null<Int>,pass:String,host:String,database:String};
-
-    public static function getInstance(?params:{user:String,?socket:Null<String>,?port:Null<Int>,pass:String,host:String,database:String}):Grant
+    public static function getInstance():Grant
     {
         if (_instance == null)
-            _instance = new Grant(params);
+            _instance = new Grant();
 
         return _instance;
     }
     
-    private function new(?params:{user:String,?socket:Null<String>,?port:Null<Int>,pass:String,host:String,database:String})
+    private function new()
     {
 
     }
@@ -44,22 +39,6 @@ class Grant
     public function setSchema(schema:Schema)
     {
         this.schema = schema;
-    }
-    public function fromJson(jsonData:String):Schema
-    {
-        var schema:Schema;
-        try
-        {
-            schema = haxe.Json.parse(jsonData);
-        }
-        catch(ex:String)
-        {
-            throw "Invalid Json format:" + ex;
-        }
-       
-        this.schema = schema;
-
-        return schema;
     }
 
     public function addRole(obj:Role)
@@ -85,9 +64,7 @@ class Grant
     {
 
         if(schema == null || schema.accesscontrol == null)
-        {
-            return new Permission(role, resourceName, null, "schema or access control object is null");
-        }
+            return new Permission(role, resourceName, null, "No access control schema is provided");
         
         //find the role in the schema
         var _thisRole:Role = null;
@@ -164,11 +141,11 @@ class Grant
         var accessMessage = "";
 
         if(_policies.length == 0)
-            accessMessage =  "no " + action + " policy found for this role:" + role + " on this resource:" + resourceName;
+            accessMessage =  'no ${action} policy was found for role ${role} on resource ${resourceName}';
         
         if(zerolimited == true)
         {
-            accessMessage =  "all existing policies found are limited to zero for this role:" + role + " on this resource:" + resourceName;
+            accessMessage =  'all existing policies found are limited to zero for role ${role} on resource ${resourceName}';
             //because all limited to 0 discard them
             _policies = null;
         }
@@ -176,7 +153,7 @@ class Grant
         return new Permission(role, resourceName, _policies, accessMessage);
     }
 
-    public function access(user:Dynamic, permission:Permission, resource:Dynamic):Dynamic
+    public function access(user:Dynamic, permission:Permission, resource:Dynamic, connection:Connection):Dynamic
     {  
         var allow = false;
 
@@ -184,56 +161,43 @@ class Grant
         {
             if(user.role != null && permission.role != null && user.role == permission.role)
             {
-                allow = checkRecord(user, permission.policy, resource);
+                allow = checkPolicy(user, permission.policy, resource, connection);
                 
                 if(allow)
                 {
-                    allow = checkLimit (user, permission.policy.limit, resource);
+                    allow = checkLimit (user, permission.policy.limit, resource, connection);
                     if(allow)
                     {
                         permission.policy.fields = checkFields(permission.policy.fields);
                         return permission.filter(user, resource);
                     }
                     else
-                    {
-                        permission.message += ", limit has been reached.";
-                    }
+                        permission.message += ", limit on the resource has been reached.";
                 }
             }
             else
-            {
-                permission.message += ", user role and permisionm role does not match";
-            }
+                permission.message += ", user role and permission does not match";
         }
         
         if(permission.nextPolicy() == true)
-            return access(user, permission, resource);
+            return access(user, permission, resource, connection);
         else
-        {
-            return null;
-        }
-            
+            return null;   
     }
 
-    private function checkRecord(user:Dynamic, policy:Policy, resource:Dynamic):Bool
+    public function checkPolicy(user:Dynamic, policy:Policy, resource:Dynamic, connection:Connection):Bool
     {
         if(policy.records == null || policy.records == "" || policy.records.toLowerCase() == "none")
-        {
             return false;
-        }  
         else if(policy.records.toLowerCase() == "any")
-        {
             return true;
-        }
         else 
-        {    
-            return (runCondition(user, policy.records, resource) > 0 ? true : false);
-        }
+            return (runCondition(user, policy.records, resource, connection) > 0 ? true : false);
     }
 
     //this function needs revisions, having count (*) of resource.field = user.field doesn't 
     //mean we can access the current record. we need to explicitly include the current record
-    private function runCondition(user:Dynamic, condition:String, resource:Dynamic):Int
+    private function runCondition(user:Dynamic, condition:String, resource:Dynamic, connection:Connection):Int
     {
         var operators = new Array<String>();
         var conditions = new Array<String>();
@@ -258,7 +222,6 @@ class Grant
 
                 default: conditionPart += condition.charAt(i);
             }
-
         }
         
         //push the last condition part
@@ -270,12 +233,10 @@ class Grant
 
         for(conditionPart in conditions)
         {
-            var retVal = evaluateExpression(user, conditionPart, resource);
+            var retVal = evaluateExpression(user, conditionPart, resource, connection);
 
             if(counter == 0)
-            {
                 finalValue = (retVal == 1 ? true:false);
-            }
             else
             {
                 switch (operators[counter-1])
@@ -286,11 +247,10 @@ class Grant
             }
         }
         return (finalValue == true ? 1 : 0);
-        //case when we use a select statement in the condition
-        
+        //case when we use a select statement in the condition 
     }
 
-    private function evaluateExpression(user:Dynamic, condition:String, resource:Dynamic):Int
+    private function evaluateExpression(user:Dynamic, condition:String, resource:Dynamic, connection:Connection):Int
     {
         if(condition.indexOf("select") == 0 || condition.indexOf("Select") == 0 || condition.indexOf("SELECT") == 0)
         {
@@ -311,7 +271,7 @@ class Grant
                 condition = StringTools.replace(condition, "$resource." + resourceField , resourceValue);
             }
 
-            return executeQuery(condition);
+            return executeQuery(condition, connection);
         }
         //case we use (resource.fieldName = user.fieldName) or (resource.fieldName = someValue)
         else  if(condition.indexOf("$resource") == 0 || condition.indexOf("$user") == 0)
@@ -333,16 +293,13 @@ class Grant
                 if(firstParts.length != 2)
                     throw "wrong expression, left side of expression does not have a field attached to it";
                 
-                
                 if(firstParts[0] == "$resource")
                     firstPartValue = Reflect.field(resource, firstParts[1]);
                 else
                     firstPartValue = Reflect.field(user, firstParts[1]);
 
                 if(firstPartValue == null)
-                {
                     return 0;
-                }
 
                 //case right operand is user.fieldName or resource.fieldName
                 if(operands[1].indexOf("$user") == 0 || operands[1].indexOf("$resource") == 0  )
@@ -358,10 +315,7 @@ class Grant
                         secondPartValue = Reflect.field(user, secondParts[1]);
 
                     if(secondPartValue == null)
-                    {
                         return 0;
-                    }
-
                 }
                 //case right operand is someValue
                 else
@@ -380,52 +334,31 @@ class Grant
                             default:  secondPartValue = rightOperand[0];
                         }
                     }
-                    else
-                    {
-                        //it is a string value
+                    else  //it is a string value
                         secondPartValue = operands[1];
-                    }
                 }
 
                 if(condition.indexOf(">=") != -1)
-                {
                     return (firstPartValue >= secondPartValue ? 1:0);
-                }
                 else if(condition.indexOf("<=") != -1)
-                {
                     return (firstPartValue <= secondPartValue ? 1:0);
-                }
                 else if(condition.indexOf(">") != -1)
-                {
                     return (firstPartValue > secondPartValue ? 1:0);
-                }
                 else if(condition.indexOf("<") != -1)
-                {
                     return (firstPartValue < secondPartValue ? 1:0);
-                }
                 else if(condition.indexOf("!=") != -1)
-                {
                     return (firstPartValue != secondPartValue ? 1:0);
-                }
                 else if(condition.indexOf("==") != -1)
-                {
                     return (firstPartValue == secondPartValue ? 1:0);
-                }
                 else if(condition.indexOf("=") != -1)
-                {
                     return (firstPartValue == secondPartValue ? 1:0);
-                }
                 else
                     throw "error in records expression, wrong operator used in expression";
             }
             else
-            {
                 throw "error in records expression, no 2 operands were detected";
-            } 
         }
-
         return 0;
-        
     }
 
     private function extractFieldName(statement:String, obj:String):String
@@ -447,37 +380,22 @@ class Grant
         return field;
     }
 
-    private function checkLimit(user:Dynamic, limit:Limit, resource:Dynamic):Bool
+    private function checkLimit(user:Dynamic, limit:Limit, resource:Dynamic, connection:Connection):Bool
     {
         var allow = false;
-        if(limit == null || limit.amount == null || limit.amount == -1)
-        {
-            //we do not care about limit
+        if(limit == null || limit.amount == null || limit.amount == -1) //we do not care about limit
             allow = true;
-        }
         else if(limit.amount > 0)
-        {
-            if(connection == null)
-                throw "No connection to db provided, Grant needs to check action limit";
-            
-            return (runCondition(user, limit.rule, resource) > 0 ? true: false);
-
-        } 
+            return (runCondition(user, limit.rule, resource, connection) > 0 ? true: false);
         else if(limit.amount == 0)
-        {
             allow = false;
-        }   
 
         return allow;
     }
 
-    private function executeQuery(sql:String):Int
+    private function executeQuery(sql:String, connection:Connection):Int
     {
-        if( connectMysql() == null)
-            throw "no connection to db is established.";
-        
         var records:ResultSet;
-
         try
         {
             records = connection.request(sql);
@@ -487,8 +405,6 @@ class Grant
         }
         if(records == null || records.results().length == null)
             return 0;
-
-        disconnectMysql();
         
         return records.results().length;
     }
@@ -510,9 +426,7 @@ class Grant
         for(field in fieldsArray)
         {
             if(field == "*")
-            {
                 finalFields = "*, " + finalFields;
-            }
             else if(field.charAt(0) != '!')
             {
                 if(grant.Utils.linearSearch(includedFields, field) == -1)
@@ -533,31 +447,4 @@ class Grant
         
         return finalFields; 
     } 
-
-    public function evaluatePolicy(user:Dynamic, policy:Policy, resource:Dynamic):Bool
-    {
-        return checkRecord(user, policy, resource);
-    }
-
-    private function connectMysql():Bool
-    {
-        if(!isConnected)
-        {
-            this.connection = Mysql.connect(databaseInfo);
-
-            isConnected = true;
-        }
-       
-        return isConnected;
-    }
-
-    private function disconnectMysql():Bool
-    {
-		this.connection.close();
-		isConnected = false;
-
-        return !isConnected;
-    }
-
-    
 }

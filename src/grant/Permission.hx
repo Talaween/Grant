@@ -1,5 +1,6 @@
 package grant;
 
+import sys.db.Connection;
 import grant.Grant.Policy;
 import grant.Grant;
 
@@ -24,7 +25,6 @@ import grant.Grant;
     private var policies:Array<Policy>;
     private var currentIndex:Int;
 
- 
     private function new(role:String, resource:String, policies:Array<Policy>, ?message:String)
     {
         this.role = role;
@@ -40,9 +40,7 @@ import grant.Grant;
             this.granted = true;
         } 
         else
-        {
             this.granted = false;
-        }
     }
     
     function get_granted(){
@@ -66,7 +64,7 @@ import grant.Grant;
 
         return false;
     }
-    public function filter(user:Dynamic, resource:Dynamic):Dynamic
+    public function filter(user:Dynamic, resource:Dynamic, connection:Connection):Dynamic
     {
         if(this.policy == null)
             return null;
@@ -117,7 +115,7 @@ import grant.Grant;
 
                                 if(subPermission.granted == true)
                                 {
-                                    var subObjCopy = grant.access(user, subPermission, subObj);
+                                    var subObjCopy = grant.access(user, subPermission, subObj, connection);
                                     Reflect.setField(resourceCopy, subs[0], subObjCopy );
                                 }
                             } 
@@ -150,9 +148,7 @@ import grant.Grant;
         for(i in 0...len)
         {
             if(tmp_fields[i].indexOf("^") > -1)
-            {
                 tmp_fields[i] = tmp_fields[i].split("^")[0];
-            }
         }
 
         return tmp_fields;

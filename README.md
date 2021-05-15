@@ -82,10 +82,10 @@ please note further database checks maybe needed to confirm access to the resour
 To access the actual resource or record, you will use the permission object with the user object and the resource object. please note that the user object should have a propery called role, if user does not have a role property then an exception is thrown.
 
 ```js
-public function access(user:Dynamic, permission:Permission, resource:Dynamic):Dynamic
+public function access(user:Dynamic, permission:Permission, resource:Dynamic, connection:Connection):Dynamic
 
 //an example of how to use it in the code
-var accessibleObject = grant.access(user, permission, article);
+var accessibleObject = grant.access(user, permission, article, connection);
 
 ```
 
@@ -99,10 +99,10 @@ var fields = permsision.fields();
 
 ```
 
-you can also filter what user can access from the resource without allowing Grant to access DB, in this case you will need to do the actual check for user permission by yourself for example if the user is the owner.
+you can also filter what user can access from the resource, in this case you will need to do the actual check for user permission by yourself for example if the user is the owner.
 
 ```js
-public function filter(user:Dynamic, resource:Dynamic):Dynamic
+public function filter(user:Dynamic, resource:Dynamic, connection:Connection):Dynamic
 
 //an example of how to use it in the code
 var accessibleObject = permission.filter(user, article);
@@ -327,7 +327,7 @@ create a tag on own articles, where articles are stored in a table called Articl
 You can let Grant verify a policy that is not part of your schema using 
 
 ```js
-public function evaluatePolicy(user:Dynamic, policy:Policy, resource:Dynamic):Bool
+public function checkPolicy(user:Dynamic, policy:Policy, resource:Dynamic):Bool
 
 ```
 

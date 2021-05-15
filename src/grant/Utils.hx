@@ -53,9 +53,7 @@ class Utils
 		for (i in 0...len)
 		{
 			if(StringTools.isSpace(str, i) == false)
-			{
 				tempStr += str.charAt(i);
-			}
 		}
 
 		return tempStr;
@@ -88,7 +86,6 @@ class Utils
 	public static function isLetterOrDigit(char:String):Bool
 	{
 		return (isLetter(char) || isDigit(char));
-		
 	}
 	
 }
